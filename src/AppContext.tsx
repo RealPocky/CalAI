@@ -1,0 +1,232 @@
+import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000';
+
+export interface FoodItem {
+  id: string;
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
+interface MealsData {
+  breakfast: FoodItem[];
+  lunch: FoodItem[];
+  dinner: FoodItem[];
+  snack: FoodItem[];
+}
+
+export interface UserProfile {
+  id?: string;
+  gender: 'male' | 'female';
+  dob: Date | null;
+  weight: string;
+  height: string;
+  targetWeight: string;
+  targetDate: Date | null;
+  activityLevel: number;
+}
+
+interface AppContextType {
+  mealsData: MealsData;
+  addFoodToMeal: (mealId: keyof MealsData, food: FoodItem) => void;
+  removeFoodFromMeal: (mealId: keyof MealsData, foodId: string) => void;
+  waterIntake: number;
+  setWaterIntake: (val: number | ((prev: number) => number)) => void;
+  waterGoal: number;
+  setWaterGoal: (val: number) => void;
+  waterIncrement: number;
+  setWaterIncrement: (val: number) => void;
+  dailyTarget: number;
+  setDailyTarget: (val: number) => void;
+  userProfile: UserProfile;
+  setUserProfile: (val: UserProfile | ((prev: UserProfile) => UserProfile)) => void;
+  syncUserWithBackend: () => Promise<void>;
+  saveUserToBackend: (updates?: Partial<UserProfile>) => Promise<void>;
+}
+
+const emptyMealsData: MealsData = {
+  breakfast: [],
+  lunch: [],
+  dinner: [],
+  snack: [],
+};
+
+const defaultUserProfile: UserProfile = {
+  gender: 'male',
+  dob: new Date(2004, 9, 25),
+  weight: '102',
+  height: '177',
+  targetWeight: '80',
+  targetDate: new Date(2026, 8, 30),
+  activityLevel: 1.2,
+};
+
+const AppContext = createContext<AppContextType | undefined>(undefined);
+
+const toTextInputValue = (value: unknown, fallback: string) => {
+  if (value === null || value === undefined) return fallback;
+  return String(value);
+};
+
+const toDateOrNull = (value: unknown) => {
+  if (!value) return null;
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const mapBackendUserToProfile = (user: any, current: UserProfile): UserProfile => ({
+  id: user.id ?? current.id,
+  gender: user.gender === 'female' ? 'female' : 'male',
+  dob: toDateOrNull(user.dob) ?? current.dob,
+  weight: toTextInputValue(user.weight, current.weight),
+  height: toTextInputValue(user.height, current.height),
+  targetWeight: toTextInputValue(user.targetWeight, current.targetWeight),
+  targetDate: toDateOrNull(user.targetDate) ?? current.targetDate,
+  activityLevel: typeof user.activityLevel === 'number' ? user.activityLevel : current.activityLevel,
+});
+
+const mapProfileToBackendPayload = (profile: UserProfile) => ({
+  gender: profile.gender,
+  dob: profile.dob?.toISOString() ?? null,
+  weight: Number(profile.weight) || 0,
+  height: Number(profile.height) || 0,
+  targetWeight: Number(profile.targetWeight) || 0,
+  targetDate: profile.targetDate?.toISOString() ?? null,
+  activityLevel: profile.activityLevel,
+});
+
+export function AppProvider({ children }: { children: ReactNode }) {
+  const [mealsData, setMealsData] = useState<MealsData>(emptyMealsData);
+  const [waterIntake, setWaterIntake] = useState(0);
+  const [waterGoal, setWaterGoal] = useState(2000);
+  const [waterIncrement, setWaterIncrement] = useState(250);
+  const [dailyTarget, setDailyTarget] = useState(2000);
+  const [userProfile, setUserProfile] = useState<UserProfile>(defaultUserProfile);
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  const syncUserWithBackend = async () => {
+    const response = await fetch(`${API_BASE_URL}/api/user/sync`);
+
+    if (!response.ok) {
+      throw new Error(`Sync user failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    const backendUser = data.user;
+
+    if (!backendUser) return;
+
+    setUserProfile(prev => mapBackendUserToProfile(backendUser, prev));
+
+    if (typeof backendUser.waterGoal === 'number') setWaterGoal(backendUser.waterGoal);
+    if (typeof backendUser.waterIncrement === 'number') setWaterIncrement(backendUser.waterIncrement);
+  };
+
+  const saveUserToBackend = async (updates?: Partial<UserProfile>) => {
+    const profileToSave = { ...userProfile, ...updates };
+    const response = await fetch(`${API_BASE_URL}/api/user`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...mapProfileToBackendPayload(profileToSave),
+        waterGoal,
+        waterIncrement,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Save user failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (data.user) {
+      setUserProfile(prev => mapBackendUserToProfile(data.user, prev));
+    }
+  };
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        await syncUserWithBackend();
+
+        const todayStr = new Date().toLocaleDateString('th-TH');
+
+        const [storedMeals, storedWater, storedTarget, storedLastDate] = await Promise.all([
+          AsyncStorage.getItem('user_meals_diary'),
+          AsyncStorage.getItem('user_water_intake'),
+          AsyncStorage.getItem('user_daily_target'),
+          AsyncStorage.getItem('user_last_date'),
+        ]);
+
+        if (storedTarget) setDailyTarget(parseInt(storedTarget, 10));
+
+        if (storedLastDate !== todayStr) {
+          setMealsData(emptyMealsData);
+          setWaterIntake(0);
+          await AsyncStorage.setItem('user_last_date', todayStr);
+        } else {
+          if (storedMeals) setMealsData(JSON.parse(storedMeals));
+          if (storedWater) setWaterIntake(parseInt(storedWater, 10));
+        }
+      } catch (e) {
+        console.error('Failed to load app data', e);
+      } finally {
+        setIsLoaded(true);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    AsyncStorage.setItem('user_meals_diary', JSON.stringify(mealsData));
+    AsyncStorage.setItem('user_water_intake', waterIntake.toString());
+    AsyncStorage.setItem('user_water_goal', waterGoal.toString());
+    AsyncStorage.setItem('user_water_increment', waterIncrement.toString());
+    AsyncStorage.setItem('user_daily_target', dailyTarget.toString());
+  }, [mealsData, waterIntake, waterGoal, waterIncrement, dailyTarget, isLoaded]);
+
+  const addFoodToMeal = (mealId: keyof MealsData, food: FoodItem) => {
+    setMealsData(prev => ({ ...prev, [mealId]: [...prev[mealId], food] }));
+  };
+
+  const removeFoodFromMeal = (mealId: keyof MealsData, foodId: string) => {
+    setMealsData(prev => ({ ...prev, [mealId]: prev[mealId].filter(f => f.id !== foodId) }));
+  };
+
+  return (
+    <AppContext.Provider
+      value={{
+        mealsData,
+        addFoodToMeal,
+        removeFoodFromMeal,
+        waterIntake,
+        setWaterIntake,
+        waterGoal,
+        setWaterGoal,
+        waterIncrement,
+        setWaterIncrement,
+        dailyTarget,
+        setDailyTarget,
+        userProfile,
+        setUserProfile,
+        syncUserWithBackend,
+        saveUserToBackend,
+      }}
+    >
+      {children}
+    </AppContext.Provider>
+  );
+}
+
+export const useAppContext = () => {
+  const context = useContext(AppContext);
+  if (!context) throw new Error('useAppContext must be used within an AppProvider');
+  return context;
+};
