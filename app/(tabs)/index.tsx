@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Dimensions, Modal, TextInput, Keyboard, Platform } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Dimensions, Modal, TextInput, Keyboard, Platform, Animated } from 'react-native';
 // 🌟 เปลี่ยนมาใช้ไอคอนแบบ SVG ของ Lucide แทนIoniconsเพื่อweb
 import { LayoutDashboard, BookText, Plus, Target, Flame, ChevronLeft, ChevronUp, ChevronDown, Check, Droplets, Trash2, Edit2, X, MoreHorizontal } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -12,6 +12,7 @@ import { useAppContext } from '../../src/AppContext';
 const { width } = Dimensions.get('window');
 const incrementOptions = [100, 150, 200, 250, 500, 750, 1000, 1250, 1500, 1750, 2000];
 const ITEM_HEIGHT = 50; 
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 // 🌟 ตัวแปรแมปไอคอนมื้ออาหารแบบ SVG
 const mealIcons = {
@@ -44,15 +45,26 @@ export default function DashboardScreen() {
   const totalProtein = allFoods.reduce((sum, item) => sum + item.protein, 0);
   const totalFat = allFoods.reduce((sum, item) => sum + item.fat, 0);
 
-  // 🌟 ป้องกันแคลอรี่เป้าหมายเป็น 0 (ถ้าคุณ Pocky ยังไม่กรอกข้อมูล)
-  const safeDailyTarget = dailyTarget > 0 ? dailyTarget : 2000;
-
   // 🌟 การคำนวณสำหรับสร้างวงกลมกราฟแบบ SVG
   const radius = 60; // รัศมีวงกลม
   const strokeWidth = 10; // ความหนาเส้น
   const circumference = 2 * Math.PI * radius; // เส้นรอบวง
-  const fillPercentage = Math.min(totalConsumed / safeDailyTarget, 1); // เปอร์เซ็นต์ความคืบหน้า (ห้ามเกิน 1)
-  const strokeDashoffset = circumference - (circumference * fillPercentage); // ค่า Offset สำหรับวาดเส้น
+  const displayedDailyTarget = dailyTarget > 0 ? dailyTarget : 0;
+  const calorieFillPercentage = displayedDailyTarget > 0 ? Math.min(totalConsumed / displayedDailyTarget, 1) : 0;
+  const animatedCalorieProgress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(animatedCalorieProgress, {
+      toValue: calorieFillPercentage,
+      duration: displayedDailyTarget > 0 ? 900 : 250,
+      useNativeDriver: false,
+    }).start();
+  }, [animatedCalorieProgress, calorieFillPercentage, displayedDailyTarget]);
+
+  const strokeDashoffset = animatedCalorieProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [circumference, 0],
+  });
 
   // สถานะสำหรับโมดอลน้ำดื่ม
   const [waterModalVisible, setWaterModalVisible] = useState(false); 
@@ -100,7 +112,7 @@ export default function DashboardScreen() {
                 {/* วงกลมพื้นหลังสีอ่อน */}
                 <Circle cx="70" cy="70" r={radius} stroke="#E8F5E9" strokeWidth={strokeWidth} fill="none" />
                 {/* วงกลมความคืบหน้าสีเขียว */}
-                <Circle
+                <AnimatedCircle
                   cx="70"
                   cy="70"
                   r={radius}
@@ -117,7 +129,7 @@ export default function DashboardScreen() {
               {/* ข้อความตรงกลางวงกลม */}
               <View style={styles.circleTextOverlay}>
                 <Text style={styles.circleLabel}>ที่ควรได้รับ</Text>
-                <Text style={styles.circleNumber}>{Math.max(safeDailyTarget - totalConsumed, 0).toLocaleString()}</Text>
+                <Text style={styles.circleNumber}>{Math.max(displayedDailyTarget - totalConsumed, 0).toLocaleString()}</Text>
               </View>
             </View>
 
@@ -127,7 +139,7 @@ export default function DashboardScreen() {
                 <View style={[styles.detailIconBg, { backgroundColor: '#E8F5E9' }]}><Target size={20} color="#4CAF50" /></View>
                 <View style={styles.detailTextContainer}>
                   <Text style={styles.detailLabel}>เป้าหมาย</Text>
-                  <Text style={styles.detailValue}>{safeDailyTarget.toLocaleString()}</Text>
+                  <Text style={styles.detailValue}>{displayedDailyTarget.toLocaleString()}</Text>
                 </View>
               </View>
               <View style={styles.detailRow}>

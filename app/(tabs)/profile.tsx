@@ -124,9 +124,18 @@ export default function ProfileScreen() {
     try {
       await saveUserToBackend();
       if (resultData.targetCalories > 0) setDailyTarget(resultData.targetCalories);
-      Alert.alert('สำเร็จ', 'บันทึกข้อมูลสำเร็จแล้ว');
-    } catch {
-      Alert.alert('เกิดข้อผิดพลาด', 'บันทึกไม่สำเร็จ');
+      if (Platform.OS === 'web') {
+        window.alert('บันทึกข้อมูลส่วนตัวสำเร็จแล้ว! ✨');
+      } else {
+        Alert.alert('สำเร็จ', 'บันทึกข้อมูลส่วนตัวสำเร็จแล้ว! ✨');
+      }
+    } catch (error) {
+      console.error(error);
+      if (Platform.OS === 'web') {
+        window.alert('บันทึกไม่สำเร็จ');
+      } else {
+        Alert.alert('เกิดข้อผิดพลาด', 'บันทึกไม่สำเร็จ');
+      }
     }
   };
 

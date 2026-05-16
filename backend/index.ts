@@ -116,6 +116,16 @@ app.post('/api/meals', async (req, res) => {
   }
 });
 
+app.delete('/api/meals/:id', async (req, res) => {
+  try {
+    await prisma.foodRecord.delete({ where: { id: req.params.id } });
+    res.json({ message: 'Meal deleted successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
 app.patch('/api/water', async (req, res) => {
   try {
     const existingUser = await getOrCreateDefaultUser();

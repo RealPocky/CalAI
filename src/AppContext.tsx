@@ -33,7 +33,7 @@ export interface UserProfile {
 interface AppContextType {
   mealsData: MealsData;
   addFoodToMeal: (mealId: keyof MealsData, food: FoodItem) => Promise<void>;
-  removeFoodFromMeal: (mealId: keyof MealsData, foodId: string) => void;
+  removeFoodFromMeal: (mealId: keyof MealsData, foodId: string) => Promise<void>;
   waterIntake: number;
   setWaterIntake: (val: number | ((prev: number) => number)) => void;
   waterGoal: number;
@@ -115,7 +115,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [waterIntake, setWaterIntake] = useState(0);
   const [waterGoal, setWaterGoal] = useState(2000);
   const [waterIncrement, setWaterIncrement] = useState(250);
-  const [dailyTarget, setDailyTarget] = useState(2000);
+  const [dailyTarget, setDailyTarget] = useState(0);
   const [userProfile, setUserProfile] = useState<UserProfile>(defaultUserProfile);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -227,8 +227,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     AsyncStorage.setItem('user_daily_target', dailyTarget.toString());
   }, [mealsData, waterIntake, waterGoal, waterIncrement, dailyTarget, isLoaded]);
 
-  const removeFoodFromMeal = (mealId: keyof MealsData, foodId: string) => {
-    setMealsData(prev => ({ ...prev, [mealId]: prev[mealId].filter(f => f.id !== foodId) }));
+  const removeFoodFromMeal = async (mealId: keyof MealsData, foodId: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/meals/${encodeURIComponent(foodId)}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error(`Delete meal failed with status ${response.status}`);
+      }
+
+      setMealsData(prev => ({ ...prev, [mealId]: prev[mealId].filter(f => f.id !== foodId) }));
+    } catch (error) {
+      console.error('Failed to delete meal', error);
+    }
   };
 
   const saveWaterToBackend = async (currentWater: number) => {
