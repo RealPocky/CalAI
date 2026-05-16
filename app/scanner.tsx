@@ -354,8 +354,8 @@ const styles = StyleSheet.create({
   permissionButton: { backgroundColor: '#4CAF50', paddingHorizontal: 30, paddingVertical: 15, borderRadius: 25 },
   permissionText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
 
-  massiveBorder: { position: 'absolute', top: '50%', left: '50%', width: scanAreaSize + 2 * height, height: scanAreaSize + 2 * height, marginLeft: -(scanAreaSize / 2) - height, marginTop: -(scanAreaSize / 2) - height, borderRadius: 24 + height, borderColor: 'rgba(0,0,0,0.6)', borderWidth: height },
-  scanFrameContainer: { position: 'absolute', top: '50%', left: '50%', width: scanAreaSize, height: scanAreaSize, marginLeft: -scanAreaSize / 2, marginTop: -scanAreaSize / 2, borderRadius: 24, overflow: 'hidden' },
+  massiveBorder: { position: 'absolute', top: '43%', left: '50%', width: scanAreaSize + 2 * height, height: scanAreaSize + 2 * height, marginLeft: -(scanAreaSize / 2) - height, marginTop: -(scanAreaSize / 2) - height, borderRadius: 24 + height, borderColor: 'rgba(0,0,0,0.6)', borderWidth: height },
+  scanFrameContainer: { position: 'absolute', top: '43%', left: '50%', width: scanAreaSize, height: scanAreaSize, marginLeft: -scanAreaSize / 2, marginTop: -scanAreaSize / 2, borderRadius: 24, overflow: 'hidden' },
   scanLine: { width: '100%', height: 3, backgroundColor: '#4CAF50', shadowColor: '#4CAF50', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 1, shadowRadius: 8, elevation: 5 },
   corner: { position: 'absolute', width: 40, height: 40, borderColor: '#FFF', borderWidth: 4 },
   topLeft: { top: 0, left: 0, borderBottomWidth: 0, borderRightWidth: 0, borderTopLeftRadius: 24 },
