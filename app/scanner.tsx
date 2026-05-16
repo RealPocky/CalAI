@@ -11,7 +11,7 @@ import { MotiView } from 'moti';
 import { API_BASE_URL, useAppContext } from '../src/AppContext';
 
 const { width, height } = Dimensions.get('window');
-const scanAreaSize = width * 0.75;
+const scanAreaSize = Math.min(width * 0.86, height * 0.5);
 
 export default function ScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
