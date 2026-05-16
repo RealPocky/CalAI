@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   View, Text, TextInput, StyleSheet, SafeAreaView, ScrollView, 
-  KeyboardAvoidingView, Platform, Pressable, Modal, Dimensions, TouchableOpacity
+  KeyboardAvoidingView, Platform, Pressable, Modal, Dimensions, TouchableOpacity, Alert
 } from 'react-native';
 import { User, CheckCircle, X } from 'lucide-react-native';
 import { MotiView, MotiText } from 'moti';
@@ -124,8 +124,10 @@ export default function ProfileScreen() {
     try {
       await saveUserToBackend();
       if (resultData.targetCalories > 0) setDailyTarget(resultData.targetCalories);
-      alert('บันทึกข้อมูลเรียบร้อย! 🚀');
-    } catch (e) { alert('บันทึกไม่สำเร็จ'); }
+      Alert.alert('สำเร็จ', 'บันทึกข้อมูลสำเร็จแล้ว');
+    } catch {
+      Alert.alert('เกิดข้อผิดพลาด', 'บันทึกไม่สำเร็จ');
+    }
   };
 
   const calculatedAge = useMemo(() => {
