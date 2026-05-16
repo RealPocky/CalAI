@@ -8,13 +8,13 @@ datasource db {
 
 model User {
   id             String       @id @default(uuid())
-  gender         String       @default("male")
+  gender         String       @default("")
   dob            DateTime?
   weight         Float        @default(0)
   height         Float        @default(0)
   targetWeight   Float        @default(0)
   targetDate     DateTime?
-  activityLevel  Float        @default(1.2)
+  activityLevel  Float        @default(0)
   waterGoal      Int          @default(2000)
   waterIncrement Int          @default(250)
   currentWater   Int          @default(0)

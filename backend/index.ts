@@ -23,10 +23,11 @@ const getOrCreateDefaultUser = async () => {
   if (!user) {
     user = await prisma.user.create({
       data: {
-        gender: 'male',
-        weight: 102,
-        height: 177,
-        targetWeight: 80,
+        gender: '',
+        weight: 0,
+        height: 0,
+        targetWeight: 0,
+        activityLevel: 0,
         waterGoal: 2000,
         waterIncrement: 250,
         currentWater: 0,
@@ -212,13 +213,13 @@ app.patch('/api/user', async (req, res) => {
   try {
     const existingUser = await getOrCreateDefaultUser();
     const data = {
-      gender: req.body.gender === 'female' ? 'female' : 'male',
+      gender: req.body.gender === 'male' || req.body.gender === 'female' ? req.body.gender : '',
       dob: req.body.dob ? new Date(req.body.dob) : null,
       weight: Number(req.body.weight) || 0,
       height: Number(req.body.height) || 0,
       targetWeight: Number(req.body.targetWeight) || 0,
       targetDate: req.body.targetDate ? new Date(req.body.targetDate) : null,
-      activityLevel: Number(req.body.activityLevel) || 1.2,
+      activityLevel: Number(req.body.activityLevel) || 0,
       waterGoal: Number(req.body.waterGoal) || 2000,
       waterIncrement: Number(req.body.waterIncrement) || 250,
       currentWater:

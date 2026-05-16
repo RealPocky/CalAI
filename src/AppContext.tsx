@@ -21,7 +21,7 @@ interface MealsData {
 
 export interface UserProfile {
   id?: string;
-  gender: 'male' | 'female';
+  gender: '' | 'male' | 'female';
   dob: Date | null;
   weight: string;
   height: string;
@@ -57,19 +57,20 @@ const emptyMealsData: MealsData = {
 };
 
 const defaultUserProfile: UserProfile = {
-  gender: 'male',
-  dob: new Date(2004, 9, 25),
-  weight: '102',
-  height: '177',
-  targetWeight: '80',
-  targetDate: new Date(2026, 8, 30),
-  activityLevel: 1.2,
+  gender: '',
+  dob: null,
+  weight: '',
+  height: '',
+  targetWeight: '',
+  targetDate: null,
+  activityLevel: 0,
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const toTextInputValue = (value: unknown, fallback: string) => {
   if (value === null || value === undefined) return fallback;
+  if (Number(value) === 0) return '';
   return String(value);
 };
 
@@ -81,13 +82,13 @@ const toDateOrNull = (value: unknown) => {
 
 const mapBackendUserToProfile = (user: any, current: UserProfile): UserProfile => ({
   id: user.id ?? current.id,
-  gender: user.gender === 'female' ? 'female' : 'male',
+  gender: user.gender === 'male' || user.gender === 'female' ? user.gender : '',
   dob: toDateOrNull(user.dob) ?? current.dob,
   weight: toTextInputValue(user.weight, current.weight),
   height: toTextInputValue(user.height, current.height),
   targetWeight: toTextInputValue(user.targetWeight, current.targetWeight),
   targetDate: toDateOrNull(user.targetDate) ?? current.targetDate,
-  activityLevel: typeof user.activityLevel === 'number' ? user.activityLevel : current.activityLevel,
+  activityLevel: typeof user.activityLevel === 'number' && user.activityLevel > 0 ? user.activityLevel : current.activityLevel,
 });
 
 const mapProfileToBackendPayload = (profile: UserProfile) => ({

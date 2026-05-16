@@ -183,7 +183,7 @@ export default function ProfileScreen() {
     if (daysLeft <= 0) return { targetCalories: 0, daysLeft: 0, isDangerous: true, weightToLose };
     let bmr = (10 * currentW) + (6.25 * h) - (5 * calculatedAge);
     bmr = gender === 'male' ? bmr + 5 : bmr - 161;
-    const tdee = bmr * activityMultiplier;
+    const tdee = bmr * (activityMultiplier || 1.2);
     const totalDeficitNeeded = weightToLose * 7700;
     const dailyDeficitNeeded = totalDeficitNeeded / daysLeft;
     let targetCalories = Math.round(tdee - dailyDeficitNeeded);
@@ -244,7 +244,10 @@ export default function ProfileScreen() {
               <Text style={styles.sectionTitle}>ข้อมูลพื้นฐาน</Text>
               <Text style={styles.label}>เพศ</Text>
               <View style={styles.genderToggleContainer}>
-                <MotiView style={styles.genderActiveBackground} animate={{ left: gender === 'male' ? '0%' : '50%' }} />
+                <MotiView
+                  style={styles.genderActiveBackground}
+                  animate={{ left: gender === 'male' ? '0%' : '50%', opacity: gender ? 1 : 0 }}
+                />
                 <Pressable style={styles.genderToggleButton} onPress={() => setGender('male')}>
                   <User size={18} color={gender === 'male' ? '#FFF' : '#888'} />
                   <Text style={[styles.genderText, gender === 'male' && styles.genderTextActive]}> ชาย</Text>
@@ -275,17 +278,17 @@ export default function ProfileScreen() {
               <Text style={styles.sectionTitle}>สัดส่วน & เป้าหมาย</Text>
               <TouchableOpacity style={styles.measurementRow} onPress={() => { setPickerType('weight'); setTempMeasurement(weight); setPickerVisible(true); }}>
                 <Text style={styles.measurementLabel}>น้ำหนักปัจจุบัน (กก.)</Text>
-                <Text style={styles.measurementValue}>{weight}</Text>
+                <Text style={styles.measurementValue}>{weight === '0' ? '' : weight}</Text>
               </TouchableOpacity>
               <View style={styles.dividerSmall} />
               <TouchableOpacity style={styles.measurementRow} onPress={() => { setPickerType('height'); setTempMeasurement(heightValue); setPickerVisible(true); }}>
                 <Text style={styles.measurementLabel}>ส่วนสูง (ซม.)</Text>
-                <Text style={styles.measurementValue}>{heightValue}</Text>
+                <Text style={styles.measurementValue}>{heightValue === '0' ? '' : heightValue}</Text>
               </TouchableOpacity>
               <View style={styles.dividerSmall} />
               <TouchableOpacity style={styles.measurementRow} onPress={() => { setPickerType('targetWeight'); setTempMeasurement(targetWeight); setPickerVisible(true); }}>
                 <Text style={styles.measurementLabel}>น้ำหนักเป้าหมาย (กก.)</Text>
-                <Text style={[styles.measurementValue, { color: '#4CAF50' }]}>{targetWeight}</Text>
+                <Text style={[styles.measurementValue, { color: '#4CAF50' }]}>{targetWeight === '0' ? '' : targetWeight}</Text>
               </TouchableOpacity>
               <View style={styles.dividerSmall} />
 
