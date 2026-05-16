@@ -32,7 +32,7 @@ export interface UserProfile {
 
 interface AppContextType {
   mealsData: MealsData;
-  addFoodToMeal: (mealId: keyof MealsData, food: FoodItem) => void;
+  addFoodToMeal: (mealId: keyof MealsData, food: FoodItem) => Promise<void>;
   removeFoodFromMeal: (mealId: keyof MealsData, foodId: string) => void;
   waterIntake: number;
   setWaterIntake: (val: number | ((prev: number) => number)) => void;
@@ -45,6 +45,7 @@ interface AppContextType {
   userProfile: UserProfile;
   setUserProfile: (val: UserProfile | ((prev: UserProfile) => UserProfile)) => void;
   syncUserWithBackend: () => Promise<void>;
+  syncMealsWithBackend: () => Promise<void>;
   saveUserToBackend: (updates?: Partial<UserProfile>) => Promise<void>;
 }
 
@@ -99,6 +100,16 @@ const mapProfileToBackendPayload = (profile: UserProfile) => ({
   activityLevel: profile.activityLevel,
 });
 
+const emptyMeals = (): MealsData => ({
+  breakfast: [],
+  lunch: [],
+  dinner: [],
+  snack: [],
+});
+
+const isMealId = (value: string): value is keyof MealsData =>
+  value === 'breakfast' || value === 'lunch' || value === 'dinner' || value === 'snack';
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [mealsData, setMealsData] = useState<MealsData>(emptyMealsData);
   const [waterIntake, setWaterIntake] = useState(0);
@@ -122,8 +133,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setUserProfile(prev => mapBackendUserToProfile(backendUser, prev));
 
+    if (typeof backendUser.currentWater === 'number') setWaterIntake(backendUser.currentWater);
     if (typeof backendUser.waterGoal === 'number') setWaterGoal(backendUser.waterGoal);
     if (typeof backendUser.waterIncrement === 'number') setWaterIncrement(backendUser.waterIncrement);
+  };
+
+  const syncMealsWithBackend = async () => {
+    const response = await fetch(`${API_BASE_URL}/api/meals`);
+
+    if (!response.ok) {
+      throw new Error(`Sync meals failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    const nextMeals = emptyMeals();
+
+    for (const meal of data.meals || []) {
+      const mealType = String(meal.mealType);
+      if (!isMealId(mealType)) continue;
+
+      nextMeals[mealType].push({
+        id: String(meal.id),
+        name: String(meal.name),
+        calories: Number(meal.calories) || 0,
+        protein: Number(meal.protein) || 0,
+        carbs: Number(meal.carbs) || 0,
+        fat: Number(meal.fat) || 0,
+      });
+    }
+
+    setMealsData(nextMeals);
+    if (typeof data.currentWater === 'number') setWaterIntake(data.currentWater);
   };
 
   const saveUserToBackend = async (updates?: Partial<UserProfile>) => {
@@ -135,6 +175,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...mapProfileToBackendPayload(profileToSave),
         waterGoal,
         waterIncrement,
+        currentWater: waterIntake,
       }),
     });
 
@@ -152,12 +193,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const loadData = async () => {
       try {
         await syncUserWithBackend();
+        await syncMealsWithBackend();
 
         const todayStr = new Date().toLocaleDateString('th-TH');
 
-        const [storedMeals, storedWater, storedTarget, storedLastDate] = await Promise.all([
-          AsyncStorage.getItem('user_meals_diary'),
-          AsyncStorage.getItem('user_water_intake'),
+        const [storedTarget, storedLastDate] = await Promise.all([
           AsyncStorage.getItem('user_daily_target'),
           AsyncStorage.getItem('user_last_date'),
         ]);
@@ -165,12 +205,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (storedTarget) setDailyTarget(parseInt(storedTarget, 10));
 
         if (storedLastDate !== todayStr) {
-          setMealsData(emptyMealsData);
-          setWaterIntake(0);
           await AsyncStorage.setItem('user_last_date', todayStr);
-        } else {
-          if (storedMeals) setMealsData(JSON.parse(storedMeals));
-          if (storedWater) setWaterIntake(parseInt(storedWater, 10));
         }
       } catch (e) {
         console.error('Failed to load app data', e);
@@ -192,12 +227,61 @@ export function AppProvider({ children }: { children: ReactNode }) {
     AsyncStorage.setItem('user_daily_target', dailyTarget.toString());
   }, [mealsData, waterIntake, waterGoal, waterIncrement, dailyTarget, isLoaded]);
 
-  const addFoodToMeal = (mealId: keyof MealsData, food: FoodItem) => {
-    setMealsData(prev => ({ ...prev, [mealId]: [...prev[mealId], food] }));
-  };
-
   const removeFoodFromMeal = (mealId: keyof MealsData, foodId: string) => {
     setMealsData(prev => ({ ...prev, [mealId]: prev[mealId].filter(f => f.id !== foodId) }));
+  };
+
+  const saveWaterToBackend = async (currentWater: number) => {
+    const response = await fetch(`${API_BASE_URL}/api/water`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentWater }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Save water failed with status ${response.status}`);
+    }
+  };
+
+  const updateWaterIntake = (val: number | ((prev: number) => number)) => {
+    setWaterIntake(prev => {
+      const next = typeof val === 'function' ? val(prev) : val;
+      saveWaterToBackend(next).catch(error => console.error('Failed to save water intake', error));
+      return next;
+    });
+  };
+
+  const addFoodToMeal = async (mealId: keyof MealsData, food: FoodItem) => {
+    setMealsData(prev => ({ ...prev, [mealId]: [...prev[mealId], food] }));
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/meals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mealType: mealId,
+          name: food.name,
+          calories: food.calories,
+          protein: food.protein,
+          carbs: food.carbs,
+          fat: food.fat,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Save meal failed with status ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.meal?.id) {
+        setMealsData(prev => ({
+          ...prev,
+          [mealId]: prev[mealId].map(item => (item.id === food.id ? { ...item, id: data.meal.id } : item)),
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to save meal', error);
+    }
   };
 
   return (
@@ -207,7 +291,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addFoodToMeal,
         removeFoodFromMeal,
         waterIntake,
-        setWaterIntake,
+        setWaterIntake: updateWaterIntake,
         waterGoal,
         setWaterGoal,
         waterIncrement,
@@ -217,6 +301,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         userProfile,
         setUserProfile,
         syncUserWithBackend,
+        syncMealsWithBackend,
         saveUserToBackend,
       }}
     >

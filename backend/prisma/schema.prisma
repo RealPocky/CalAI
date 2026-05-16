@@ -4,49 +4,49 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  
 }
 
-// ตารางเก็บข้อมูลผู้ใช้งานและเป้าหมาย
 model User {
-  id               String        @id @default(uuid())
-  gender           String        @default("male")
-  dob              DateTime?
-  weight           Float         @default(0)
-  height           Float         @default(0)
-  targetWeight     Float         @default(0)
-  targetDate       DateTime?
-  activityLevel    Float         @default(1.2)
-  waterGoal        Int           @default(2000)
-  waterIncrement   Int           @default(250)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  id             String       @id @default(uuid())
+  gender         String       @default("male")
+  dob            DateTime?
+  weight         Float        @default(0)
+  height         Float        @default(0)
+  targetWeight   Float        @default(0)
+  targetDate     DateTime?
+  activityLevel  Float        @default(1.2)
+  waterGoal      Int          @default(2000)
+  waterIncrement Int          @default(250)
+  currentWater   Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
-  foodRecords      FoodRecord[]
-  waterRecords     WaterRecord[]
+  foodRecords    FoodRecord[]
+  waterRecords   WaterRecord[]
 }
 
-// ตารางเก็บประวัติการกินอาหาร (ไดอารี่)
 model FoodRecord {
-  id          String   @id @default(uuid())
-  userId      String
-  mealType    String   // 'breakfast', 'lunch', 'dinner', 'snack'
-  name        String
-  calories    Int      @default(0)
-  protein     Int      @default(0)
-  carbs       Int      @default(0)
-  fat         Int      @default(0)
-  date        DateTime @default(now()) // วันที่บันทึก
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  calories  Int      @default(0)
+  protein   Int      @default(0)
+  carbs     Int      @default(0)
+  fat       Int      @default(0)
+  mealType  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
-// ตารางเก็บประวัติการดื่มน้ำ
 model WaterRecord {
-  id          String   @id @default(uuid())
-  userId      String
-  amount      Int      // ปริมาณน้ำที่ดื่ม (มล.)
-  date        DateTime @default(now())
+  id     String   @id @default(uuid())
+  userId String
+  amount Int
+  date   DateTime @default(now())
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

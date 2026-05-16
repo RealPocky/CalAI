@@ -1,13 +1,10 @@
-import 'dotenv/config'; // 🌟 โหลดตัวแปรจากไฟล์ .env (สำคัญมาก!)
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 
-// เปิดใช้งาน Express และ Prisma
 const app = express();
-
-// 🌟 ป้อนลิงก์ฐานข้อมูลให้ PrismaClient รู้จักโดยตรง
 const connectionString = process.env.DATABASE_URL;
 
 if (!connectionString) {
@@ -16,42 +13,55 @@ if (!connectionString) {
 
 const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
-
 const PORT = process.env.PORT || 5000;
 
-// อนุญาตให้แอป (Frontend) ส่งข้อมูลข้ามมาหาเซิร์ฟเวอร์ได้
+const allowedMealTypes = new Set(['breakfast', 'lunch', 'dinner', 'snack']);
+
+const getOrCreateDefaultUser = async () => {
+  let user = await prisma.user.findFirst();
+
+  if (!user) {
+    user = await prisma.user.create({
+      data: {
+        gender: 'male',
+        weight: 102,
+        height: 177,
+        targetWeight: 80,
+        waterGoal: 2000,
+        waterIncrement: 250,
+        currentWater: 0,
+      },
+    });
+    console.log('Created new default user');
+  }
+
+  return user;
+};
+
+const getTodayRange = () => {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+
+  return { start, end };
+};
+
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// 🌟 API 1: ทดสอบว่าเซิร์ฟเวอร์ทำงานปกติไหม
 app.get('/', (req, res) => {
-  res.send('🚀 CalAI Backend is running smoothly!');
+  res.send('CalAI Backend is running smoothly!');
 });
 
-// 🌟 API 2: สร้างหรือดึงข้อมูลผู้ใช้งาน (แบบชั่วคราวไปก่อน)
 app.get('/health', (req, res) => {
   res.json({ ok: true });
 });
 
 app.get('/api/user/sync', async (req, res) => {
   try {
-    // ลองหา User คนแรกในระบบ
-    let user = await prisma.user.findFirst();
-
-    // ถ้ายังไม่มี User เลย ให้สร้างขึ้นมาใหม่ 1 คน
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          gender: 'male',
-          weight: 102,
-          height: 177,
-          targetWeight: 80,
-          waterGoal: 2000,
-        },
-      });
-      console.log('✨ Created new default user!');
-    }
-
+    const user = await getOrCreateDefaultUser();
     res.json({ message: 'User synced successfully', user });
   } catch (error) {
     console.error(error);
@@ -59,7 +69,70 @@ app.get('/api/user/sync', async (req, res) => {
   }
 });
 
-// สั่งให้เซิร์ฟเวอร์เริ่มทำงานและรอรับข้อมูลที่ Port 5000
+app.get('/api/meals', async (req, res) => {
+  try {
+    const user = await getOrCreateDefaultUser();
+    const { start, end } = getTodayRange();
+
+    const meals = await prisma.foodRecord.findMany({
+      where: {
+        userId: user.id,
+        createdAt: {
+          gte: start,
+          lt: end,
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    res.json({ meals, currentWater: user.currentWater });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+app.post('/api/meals', async (req, res) => {
+  try {
+    const user = await getOrCreateDefaultUser();
+    const mealType = allowedMealTypes.has(req.body.mealType) ? req.body.mealType : 'snack';
+
+    const meal = await prisma.foodRecord.create({
+      data: {
+        userId: user.id,
+        mealType,
+        name: String(req.body.name || 'Unknown food'),
+        calories: Number(req.body.calories) || 0,
+        protein: Number(req.body.protein) || 0,
+        carbs: Number(req.body.carbs) || 0,
+        fat: Number(req.body.fat) || 0,
+      },
+    });
+
+    res.status(201).json({ message: 'Meal saved successfully', meal });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+app.patch('/api/water', async (req, res) => {
+  try {
+    const existingUser = await getOrCreateDefaultUser();
+    const currentWater = Math.max(0, Number(req.body.currentWater) || 0);
+
+    const user = await prisma.user.update({
+      where: { id: existingUser.id },
+      data: { currentWater },
+    });
+
+    res.json({ message: 'Water updated successfully', currentWater: user.currentWater, user });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
 app.post('/api/analyze-food', async (req, res) => {
   try {
     const groqApiKey = process.env.GROQ_API_KEY;
@@ -127,7 +200,7 @@ If the image is not food, return only:
 
 app.patch('/api/user', async (req, res) => {
   try {
-    const existingUser = await prisma.user.findFirst();
+    const existingUser = await getOrCreateDefaultUser();
     const data = {
       gender: req.body.gender === 'female' ? 'female' : 'male',
       dob: req.body.dob ? new Date(req.body.dob) : null,
@@ -138,11 +211,11 @@ app.patch('/api/user', async (req, res) => {
       activityLevel: Number(req.body.activityLevel) || 1.2,
       waterGoal: Number(req.body.waterGoal) || 2000,
       waterIncrement: Number(req.body.waterIncrement) || 250,
+      currentWater:
+        req.body.currentWater === undefined ? existingUser.currentWater : Math.max(0, Number(req.body.currentWater) || 0),
     };
 
-    const user = existingUser
-      ? await prisma.user.update({ where: { id: existingUser.id }, data })
-      : await prisma.user.create({ data });
+    const user = await prisma.user.update({ where: { id: existingUser.id }, data });
 
     res.json({ message: 'User saved successfully', user });
   } catch (error) {
@@ -152,7 +225,9 @@ app.patch('/api/user', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`\n=========================================`);
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
-  console.log(`=========================================\n`);
+  console.log('');
+  console.log('=========================================');
+  console.log(`Server is running on http://localhost:${PORT}`);
+  console.log('=========================================');
+  console.log('');
 });
