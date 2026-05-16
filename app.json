@@ -24,6 +24,8 @@
     },
     "web": {
       "output": "static",
+      "name": "CalAI",
+      "shortName": "CalAI",
       "favicon": "./assets/images/icon.png"
     },
     "plugins": [
