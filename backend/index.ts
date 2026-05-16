@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const app = express();
 const connectionString = process.env.DATABASE_URL;
@@ -14,6 +15,7 @@ if (!connectionString) {
 const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 const PORT = process.env.PORT || 5000;
+const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
 
 const allowedMealTypes = new Set(['breakfast', 'lunch', 'dinner', 'snack']);
 
@@ -47,6 +49,11 @@ const getTodayRange = () => {
   end.setDate(end.getDate() + 1);
 
   return { start, end };
+};
+
+const parseGeminiJson = (text: string) => {
+  const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+  return JSON.parse(cleanJson);
 };
 
 app.use(cors());
@@ -146,10 +153,8 @@ app.patch('/api/water', async (req, res) => {
 
 app.post('/api/analyze-food', async (req, res) => {
   try {
-    const groqApiKey = process.env.GROQ_API_KEY;
-
-    if (!groqApiKey) {
-      return res.status(500).json({ error: 'GROQ_API_KEY is not set' });
+    if (!genAI) {
+      return res.status(500).json({ error: 'GEMINI_API_KEY is not set' });
     }
 
     const imageBase64 = String(req.body.imageBase64 || '').replace(/^data:image\/\w+;base64,/, '');
@@ -158,51 +163,50 @@ app.post('/api/analyze-food', async (req, res) => {
       return res.status(400).json({ error: 'imageBase64 is required' });
     }
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${groqApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: `Analyze this food image. Return only JSON in this shape:
-{"name":"Thai food name","calories":0,"protein":0,"carbs":0,"fat":0}
-
-If the image is not food, return only:
-{"error":"นี่ไม่ใช่รูปอาหาร ลองสแกนใหม่อีกครั้งนะครับ"}`,
-              },
-              {
-                type: 'image_url',
-                image_url: { url: `data:image/jpeg;base64,${imageBase64}` },
-              },
-            ],
-          },
-        ],
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      generationConfig: {
         temperature: 0.1,
-        max_tokens: 1024,
-      }),
+        responseMimeType: 'application/json',
+      },
     });
 
-    const raw = await response.text();
+    const prompt = `You are a Thai food nutrition analyzer.
+Analyze the food in this image and return only valid JSON. Do not include markdown, comments, or explanations.
+Use Thai for the food name when possible.
 
-    if (!response.ok) {
-      console.error(raw);
-      return res.status(502).json({ error: 'Food analysis failed' });
+Required JSON shape:
+{"name":"ชื่ออาหาร","calories":0,"protein":0,"carbs":0,"fat":0}
+
+Rules:
+- calories, protein, carbs, and fat must be numbers.
+- Estimate nutrition for one visible serving.
+- If the image is not food, return only:
+{"error":"นี่ไม่ใช่รูปอาหาร ลองสแกนใหม่อีกครั้งนะครับ"}`;
+
+    const result = await model.generateContent([
+      prompt,
+      {
+        inlineData: {
+          data: imageBase64,
+          mimeType: 'image/jpeg',
+        },
+      },
+    ]);
+
+    const foodData = parseGeminiJson(result.response.text());
+
+    if (foodData.error) {
+      return res.json({ error: String(foodData.error) });
     }
 
-    const result = JSON.parse(raw);
-    const text = result.choices?.[0]?.message?.content || '';
-    const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    const foodData = JSON.parse(cleanJson);
-
-    res.json(foodData);
+    res.json({
+      name: String(foodData.name || 'อาหารไม่ทราบชื่อ'),
+      calories: Number(foodData.calories) || 0,
+      protein: Number(foodData.protein) || 0,
+      carbs: Number(foodData.carbs) || 0,
+      fat: Number(foodData.fat) || 0,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Something went wrong' });
