@@ -28,6 +28,7 @@ export interface UserProfile {
   targetWeight: string;
   targetDate: Date | null;
   activityLevel: number;
+  lossPace: 'gradual' | 'normal' | 'aggressive';
 }
 
 interface AppContextType {
@@ -64,6 +65,7 @@ const defaultUserProfile: UserProfile = {
   targetWeight: '',
   targetDate: null,
   activityLevel: 0,
+  lossPace: 'normal',
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -89,6 +91,7 @@ const mapBackendUserToProfile = (user: any, current: UserProfile): UserProfile =
   targetWeight: toTextInputValue(user.targetWeight, current.targetWeight),
   targetDate: toDateOrNull(user.targetDate) ?? current.targetDate,
   activityLevel: typeof user.activityLevel === 'number' && user.activityLevel > 0 ? user.activityLevel : current.activityLevel,
+  lossPace: current.lossPace,
 });
 
 const mapProfileToBackendPayload = (profile: UserProfile) => ({
@@ -198,12 +201,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         const todayStr = new Date().toLocaleDateString('th-TH');
 
-        const [storedTarget, storedLastDate] = await Promise.all([
+        const [storedTarget, storedLastDate, storedLossPace] = await Promise.all([
           AsyncStorage.getItem('user_daily_target'),
           AsyncStorage.getItem('user_last_date'),
+          AsyncStorage.getItem('user_loss_pace'),
         ]);
 
         if (storedTarget) setDailyTarget(parseInt(storedTarget, 10));
+        if (storedLossPace === 'gradual' || storedLossPace === 'normal' || storedLossPace === 'aggressive') {
+          setUserProfile(prev => ({ ...prev, lossPace: storedLossPace }));
+        }
 
         if (storedLastDate !== todayStr) {
           await AsyncStorage.setItem('user_last_date', todayStr);
@@ -226,7 +233,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     AsyncStorage.setItem('user_water_goal', waterGoal.toString());
     AsyncStorage.setItem('user_water_increment', waterIncrement.toString());
     AsyncStorage.setItem('user_daily_target', dailyTarget.toString());
-  }, [mealsData, waterIntake, waterGoal, waterIncrement, dailyTarget, isLoaded]);
+    AsyncStorage.setItem('user_loss_pace', userProfile.lossPace);
+  }, [mealsData, waterIntake, waterGoal, waterIncrement, dailyTarget, userProfile.lossPace, isLoaded]);
 
   const removeFoodFromMeal = async (mealId: keyof MealsData, foodId: string) => {
     try {

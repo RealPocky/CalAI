@@ -18,6 +18,12 @@ const activityOptions = [
   { label: '🏋️‍♂️ กิจกรรมหนักมาก', description: 'นักกีฬา หรือทำงานใช้แรงงานหนักมาก', multiplier: 1.9 },
 ];
 
+const lossPaceOptions = [
+  { key: 'gradual', label: 'ค่อยเป็นค่อยไป', deficit: 250 },
+  { key: 'normal', label: 'ปกติ', deficit: 500 },
+  { key: 'aggressive', label: 'เร่งด่วน', deficit: 750 },
+] as const;
+
 const weightOptions = Array.from({length: 171}, (_, i) => (i + 30).toString()); 
 const heightOptions = Array.from({length: 151}, (_, i) => (i + 100).toString()); 
 const days = Array.from({length: 31}, (_, i) => i + 1);
@@ -97,6 +103,7 @@ export default function ProfileScreen() {
   const dob = userProfile.dob;
   const targetDate = userProfile.targetDate;
   const activityMultiplier = userProfile.activityLevel;
+  const lossPace = userProfile.lossPace;
 
   const setGender = (gender: 'male' | 'female') => setUserProfile(prev => ({ ...prev, gender }));
   const setWeight = (weight: string) => setUserProfile(prev => ({ ...prev, weight }));
@@ -105,6 +112,7 @@ export default function ProfileScreen() {
   const setDob = (dob: Date | null) => setUserProfile(prev => ({ ...prev, dob }));
   const setTargetDate = (targetDate: Date | null) => setUserProfile(prev => ({ ...prev, targetDate }));
   const setActivityMultiplier = (activityLevel: number) => setUserProfile(prev => ({ ...prev, activityLevel }));
+  const setLossPace = (lossPace: typeof lossPaceOptions[number]['key']) => setUserProfile(prev => ({ ...prev, lossPace }));
   
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [datePickerMode, setDatePickerMode] = useState<'dob' | 'target'>('dob');
@@ -170,27 +178,27 @@ export default function ProfileScreen() {
 
   const resultData = useMemo(() => {
     if (!weight || !heightValue || !targetWeight || !targetDate || calculatedAge <= 0) {
-      return { targetCalories: 0, daysLeft: 0, isDangerous: false, weightToLose: 0 }; 
+      return { targetCalories: 0, daysLeft: 0, isDangerous: false, weightToLose: 0, bmr: 0, tdee: 0, dailyDeficit: 0 }; 
     }
     const currentW = parseFloat(weight);
     const targetW = parseFloat(targetWeight);
     const h = parseFloat(heightValue);
     const weightToLose = currentW - targetW;
-    if (weightToLose <= 0) return { targetCalories: 0, daysLeft: 0, isDangerous: false, weightToLose: 0 };
+    if (weightToLose <= 0) return { targetCalories: 0, daysLeft: 0, isDangerous: false, weightToLose, bmr: 0, tdee: 0, dailyDeficit: 0 };
     const today = new Date();
     const diffTime = targetDate.getTime() - today.getTime();
     const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    if (daysLeft <= 0) return { targetCalories: 0, daysLeft: 0, isDangerous: true, weightToLose };
+    if (daysLeft <= 0) return { targetCalories: 0, daysLeft: 0, isDangerous: true, weightToLose, bmr: 0, tdee: 0, dailyDeficit: 0 };
     let bmr = (10 * currentW) + (6.25 * h) - (5 * calculatedAge);
     bmr = gender === 'male' ? bmr + 5 : bmr - 161;
     const tdee = bmr * (activityMultiplier || 1.2);
-    const totalDeficitNeeded = weightToLose * 7700;
-    const dailyDeficitNeeded = totalDeficitNeeded / daysLeft;
-    let targetCalories = Math.round(tdee - dailyDeficitNeeded);
-    const minSafe = gender === 'male' ? 1500 : 1200;
-    const isDangerous = targetCalories < minSafe;
-    return { targetCalories, daysLeft, isDangerous, weightToLose };
-  }, [gender, calculatedAge, weight, heightValue, targetWeight, activityMultiplier, targetDate]);
+    const selectedPace = lossPaceOptions.find(option => option.key === lossPace) || lossPaceOptions[1];
+    const targetBeforeSafety = Math.round(tdee - selectedPace.deficit);
+    const safeBmr = Math.round(bmr);
+    const targetCalories = Math.max(targetBeforeSafety, safeBmr);
+    const isDangerous = targetBeforeSafety < safeBmr;
+    return { targetCalories, daysLeft, isDangerous, weightToLose, bmr: safeBmr, tdee: Math.round(tdee), dailyDeficit: selectedPace.deficit };
+  }, [gender, calculatedAge, weight, heightValue, targetWeight, activityMultiplier, targetDate, lossPace]);
 
   // 🌟 Logic คำนวณ BMI และตำแหน่งลูกศรสำหรับ UI ใหม่
   const bmiValue = useMemo(() => {
@@ -298,6 +306,24 @@ export default function ProfileScreen() {
                   {targetDate ? targetDate.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : 'เลือกวัน'}
                 </Text>
               </TouchableOpacity>
+              <View style={styles.dividerSmall} />
+              <Text style={styles.label}>ความเร็วในการลดน้ำหนัก</Text>
+              <View style={styles.lossPaceContainer}>
+                {lossPaceOptions.map(option => {
+                  const isActive = lossPace === option.key;
+                  return (
+                    <TouchableOpacity
+                      key={option.key}
+                      style={[styles.lossPaceOption, isActive && styles.lossPaceOptionActive]}
+                      onPress={() => setLossPace(option.key)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.lossPaceLabel, isActive && styles.lossPaceLabelActive]}>{option.label}</Text>
+                      <Text style={[styles.lossPaceDeficit, isActive && styles.lossPaceDeficitActive]}>-{option.deficit} kcal</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
 
             <View style={[styles.card, resultData.isDangerous && { borderColor: '#FF5252', borderWidth: 2 }]}>
@@ -370,7 +396,7 @@ export default function ProfileScreen() {
                   {resultData.targetCalories > 0 ? resultData.targetCalories.toLocaleString() : '0'}
                   <Text style={[styles.smallKcal, { color: resultData.isDangerous ? '#FF5252' : '#666' }]}> kcal</Text>
                 </MotiText>
-                {resultData.isDangerous && <Text style={styles.warningText}>⚠️ แผนนี้บีบคั้นเกินไป อาจเป็นอันตรายต่อสุขภาพ</Text>}
+                {resultData.isDangerous && <Text style={styles.warningText}>Target ถูกปรับขึ้นเป็น BMR ขั้นต่ำ {resultData.bmr.toLocaleString()} kcal เพื่อความปลอดภัย</Text>}
               </View>
             </View>
 
@@ -473,6 +499,13 @@ const styles = StyleSheet.create({
   measurementLabel: { fontSize: 15, color: '#555' },
   measurementValue: { fontSize: 16, fontWeight: 'bold', color: '#222' },
   dividerSmall: { height: 1, backgroundColor: '#F0F0F0', marginVertical: 10 },
+  lossPaceContainer: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  lossPaceOption: { flex: 1, backgroundColor: '#F7F7F7', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center', borderWidth: 1, borderColor: '#EEE' },
+  lossPaceOptionActive: { backgroundColor: '#E8F5E9', borderColor: '#4CAF50' },
+  lossPaceLabel: { color: '#555', fontSize: 12, fontWeight: '700', textAlign: 'center' },
+  lossPaceLabelActive: { color: '#1B5E20' },
+  lossPaceDeficit: { color: '#999', fontSize: 11, fontWeight: '600', marginTop: 4 },
+  lossPaceDeficitActive: { color: '#2E7D32' },
   
   // 🌟 สไตล์สำหรับ BMI แบบใหม่
   bmiHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },

@@ -18,6 +18,11 @@ const PORT = process.env.PORT || 5000;
 const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
 
 const allowedMealTypes = new Set(['breakfast', 'lunch', 'dinner', 'snack']);
+const portionSizeLabels: Record<string, string> = {
+  small: 'เล็ก',
+  normal: 'ปกติ',
+  large: 'ใหญ่',
+};
 
 const getOrCreateDefaultUser = async () => {
   let user = await prisma.user.findFirst();
@@ -158,6 +163,10 @@ app.post('/api/analyze-food', async (req, res) => {
     }
 
     const imageBase64 = String(req.body.imageBase64 || '').replace(/^data:image\/\w+;base64,/, '');
+    const portionSizeKey = ['small', 'normal', 'large'].includes(String(req.body.portionSize))
+      ? String(req.body.portionSize)
+      : 'normal';
+    const portionSizeLabel = portionSizeLabels[portionSizeKey];
 
     if (!imageBase64) {
       return res.status(400).json({ error: 'imageBase64 is required' });
@@ -177,7 +186,8 @@ app.post('/api/analyze-food', async (req, res) => {
 1. ความละเอียดขั้นสุด: ระบุชนิดอาหารและวิธีปรุงให้แม่นยำ แยกแยะความแตกต่างให้ขาด เช่น ไข่ดาว (ขอบกรอบ ตรงกลางมีไข่แดง), ไข่เจียว (ฟู เนื้อเดียวกัน), หมูกรอบ (มีชั้นหนังกรอบและมัน)
 2. ระวังแคลอรี่แฝง (Hidden Calories): อาหารไทยประเภทผัด (เช่น กะเพรา) มักมีน้ำมันพืชขังอยู่ และของทอดมักจะอมน้ำมัน ให้บวกแคลอรี่เผื่อน้ำมัน น้ำตาล และเครื่องปรุงที่ซ่อนอยู่อย่างสมเหตุสมผล
 3. การประเมินปริมาณ: วิเคราะห์จากขนาดกล่องพลาสติกมาตรฐาน หรือจานข้าวปกติ เพื่อกะปริมาณกรัมที่แม่นยำ
-4. กฎการตอบกลับ: ให้ตอบกลับเป็น JSON Format ที่ถูกต้องเท่านั้น ห้ามมีข้อความเกริ่นนำหรือลงท้ายใดๆ โครงสร้าง JSON ต้องเป็นดังนี้:
+4. ขนาดปริมาณ: ผู้ใช้ระบุว่าอาหารในรูปมีขนาด "${portionSizeLabel}" (${portionSizeKey}) ให้นำตัวแปรนี้ไปปรับคูณปริมาณกรัม แคลอรี่ และสารอาหารให้สอดคล้องกับขนาดที่ระบุอย่างสมเหตุสมผล โดย "เล็ก" ควรน้อยกว่าจานปกติ, "ปกติ" คือขนาดมาตรฐาน, และ "ใหญ่" ควรมากกว่าจานปกติ
+5. กฎการตอบกลับ: ให้ตอบกลับเป็น JSON Format ที่ถูกต้องเท่านั้น ห้ามมีข้อความเกริ่นนำหรือลงท้ายใดๆ โครงสร้าง JSON ต้องเป็นดังนี้:
 {
   "name": "ชื่ออาหารภาษาไทยแบบลงรายละเอียด (เช่น ข้าวกะเพราหมูกรอบไข่ดาว)",
   "calories": ตัวเลขจำนวนเต็ม,

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Dimensions, Modal, TextInput, Keyboard, Platform, Animated } from 'react-native';
 // 🌟 เปลี่ยนมาใช้ไอคอนแบบ SVG ของ Lucide แทนIoniconsเพื่อweb
-import { LayoutDashboard, BookText, Plus, Target, Flame, ChevronLeft, ChevronUp, ChevronDown, Check, Droplets, Trash2, Edit2, X, MoreHorizontal } from 'lucide-react-native';
+import { LayoutDashboard, BookText, Plus, Target, Flame, ChevronLeft, ChevronUp, ChevronDown, Check, Droplets, Trash2, Edit2, X, MoreHorizontal, Dumbbell } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { MotiView } from 'moti';
 import Slider from '@react-native-community/slider';
@@ -44,14 +44,26 @@ export default function DashboardScreen() {
   const totalCarbs = allFoods.reduce((sum, item) => sum + item.carbs, 0);
   const totalProtein = allFoods.reduce((sum, item) => sum + item.protein, 0);
   const totalFat = allFoods.reduce((sum, item) => sum + item.fat, 0);
+  const exerciseCalories = 0;
 
   // 🌟 การคำนวณสำหรับสร้างวงกลมกราฟแบบ SVG
   const radius = 60; // รัศมีวงกลม
   const strokeWidth = 10; // ความหนาเส้น
   const circumference = 2 * Math.PI * radius; // เส้นรอบวง
   const displayedDailyTarget = dailyTarget > 0 ? dailyTarget : 0;
-  const calorieFillPercentage = displayedDailyTarget > 0 ? Math.min(totalConsumed / displayedDailyTarget, 1) : 0;
+  const remainingCalories = Math.max(displayedDailyTarget - totalConsumed + exerciseCalories, 0);
+  const calorieFillPercentage = displayedDailyTarget > 0 ? Math.max(0, Math.min((displayedDailyTarget - remainingCalories) / displayedDailyTarget, 1)) : 0;
   const animatedCalorieProgress = useRef(new Animated.Value(0)).current;
+  const macroTargets = {
+    protein: displayedDailyTarget > 0 ? Math.max(Math.round((displayedDailyTarget * 0.3) / 4), 1) : 120,
+    carbs: displayedDailyTarget > 0 ? Math.max(Math.round((displayedDailyTarget * 0.45) / 4), 1) : 250,
+    fat: displayedDailyTarget > 0 ? Math.max(Math.round((displayedDailyTarget * 0.25) / 9), 1) : 60,
+  };
+  const macroItems = [
+    { key: 'protein', name: 'โปรตีน', value: totalProtein, target: macroTargets.protein, color: '#4CAF50', bgColor: '#E8F5E9' },
+    { key: 'carbs', name: 'คาร์บ', value: totalCarbs, target: macroTargets.carbs, color: '#42A5F5', bgColor: '#E3F2FD' },
+    { key: 'fat', name: 'ไขมัน', value: totalFat, target: macroTargets.fat, color: '#FB8C00', bgColor: '#FFF3E0' },
+  ];
 
   useEffect(() => {
     Animated.timing(animatedCalorieProgress, {
@@ -129,7 +141,7 @@ export default function DashboardScreen() {
               {/* ข้อความตรงกลางวงกลม */}
               <View style={styles.circleTextOverlay}>
                 <Text style={styles.circleLabel}>ที่ควรได้รับ</Text>
-                <Text style={styles.circleNumber}>{Math.max(displayedDailyTarget - totalConsumed, 0).toLocaleString()}</Text>
+                <Text style={styles.circleNumber}>{remainingCalories.toLocaleString()}</Text>
               </View>
             </View>
 
@@ -150,6 +162,13 @@ export default function DashboardScreen() {
                   <Text style={styles.detailValue}>{totalConsumed.toLocaleString()}</Text>
                 </View>
               </View>
+              <View style={styles.detailRow}>
+                <View style={[styles.detailIconBg, { backgroundColor: '#E3F2FD' }]}><Dumbbell size={20} color="#42A5F5" /></View>
+                <View style={styles.detailTextContainer}>
+                  <Text style={styles.detailLabel}>กิจกรรม</Text>
+                  <Text style={styles.detailValue}>{exerciseCalories.toLocaleString()}</Text>
+                </View>
+              </View>
             </View>
           </View>
         </MotiView>
@@ -158,9 +177,20 @@ export default function DashboardScreen() {
         <MotiView from={{ opacity: 0, translateY: 20 }} animate={{ opacity: 1, translateY: 0 }} delay={100} style={styles.card}>
           <Text style={styles.sectionTitle}>สารอาหาร</Text>
           <View style={styles.macroContainer}>
-            <View style={styles.macroItem}><View style={[styles.macroIconBg, { backgroundColor: '#FFF8E1' }]}><Text style={styles.emoji}>🍞</Text></View><Text style={styles.macroName}>คาร์บ</Text><Text style={styles.macroProgress}>{totalCarbs} <Text style={styles.macroTotal}>/ 250 ก.</Text></Text></View>
-            <View style={styles.macroItem}><View style={[styles.macroIconBg, { backgroundColor: '#FFEBEE' }]}><Text style={styles.emoji}>🥩</Text></View><Text style={styles.macroName}>โปรตีน</Text><Text style={styles.macroProgress}>{totalProtein} <Text style={styles.macroTotal}>/ 120 ก.</Text></Text></View>
-            <View style={styles.macroItem}><View style={[styles.macroIconBg, { backgroundColor: '#E3F2FD' }]}><Text style={styles.emoji}>🥑</Text></View><Text style={styles.macroName}>ไขมัน</Text><Text style={styles.macroProgress}>{totalFat} <Text style={styles.macroTotal}>/ 60 ก.</Text></Text></View>
+            {macroItems.map(macro => {
+              const progress = Math.min(macro.value / macro.target, 1);
+              return (
+                <View key={macro.key} style={styles.macroProgressRow}>
+                  <View style={styles.macroProgressHeader}>
+                    <Text style={styles.macroName}>{macro.name}</Text>
+                    <Text style={styles.macroProgress}>{macro.value} <Text style={styles.macroTotal}>/ {macro.target} ก.</Text></Text>
+                  </View>
+                  <View style={[styles.macroBarTrack, { backgroundColor: macro.bgColor }]}>
+                    <View style={[styles.macroBarFill, { width: `${progress * 100}%`, backgroundColor: macro.color }]} />
+                  </View>
+                </View>
+              );
+            })}
           </View>
         </MotiView>
 
@@ -319,8 +349,12 @@ const styles = StyleSheet.create({
   detailTextContainer: { marginLeft: 10 },
   detailLabel: { fontSize: 13, color: '#888', fontWeight: '500' },
   detailValue: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-  macroContainer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 15 },
+  macroContainer: { marginTop: 15 },
   macroItem: { alignItems: 'center', flex: 1 },
+  macroProgressRow: { marginBottom: 14 },
+  macroProgressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  macroBarTrack: { height: 10, borderRadius: 999, overflow: 'hidden' },
+  macroBarFill: { height: '100%', borderRadius: 999 },
   macroIconBg: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
   emoji: { fontSize: 28 },
   macroName: { fontSize: 14, color: '#666', fontWeight: '500', marginBottom: 4 },

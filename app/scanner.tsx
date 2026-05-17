@@ -15,6 +15,11 @@ const { width, height } = Dimensions.get('window');
 const scanAreaSize = Math.min(width * 0.86, height * 0.5);
 const MAX_IMAGE_SIZE = 800;
 const IMAGE_QUALITY = 0.45;
+const portionOptions = [
+  { key: 'small', label: 'เล็ก' },
+  { key: 'normal', label: 'ปกติ' },
+  { key: 'large', label: 'ใหญ่' },
+] as const;
 
 export default function ScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -25,6 +30,7 @@ export default function ScannerScreen() {
   
   const [flashMode, setFlashMode] = useState(false);
   const [activeTab, setActiveTab] = useState('scan'); 
+  const [portionSize, setPortionSize] = useState<typeof portionOptions[number]['key']>('normal');
   const [currentMeal, setCurrentMeal] = useState('อาหารว่าง');
   const [isLoading, setIsLoading] = useState(false); 
 
@@ -88,7 +94,7 @@ export default function ScannerScreen() {
       const backendResponse = await fetch(`${API_BASE_URL}/api/analyze-food`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64Image }),
+        body: JSON.stringify({ imageBase64: base64Image, portionSize }),
       });
 
       if (!backendResponse.ok) throw new Error(`HTTP error! status: ${backendResponse.status}`);
@@ -283,6 +289,22 @@ export default function ScannerScreen() {
             {/* 🚫 ถอดปุ่มบาร์โค้ดออกตามรีเควส */}
           </View>
 
+          <View style={styles.portionSelector}>
+            {portionOptions.map(option => {
+              const isActive = portionSize === option.key;
+              return (
+                <TouchableOpacity
+                  key={option.key}
+                  style={[styles.portionOption, isActive && styles.portionOptionActive]}
+                  onPress={() => setPortionSize(option.key)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[styles.portionOptionText, isActive && styles.portionOptionTextActive]}>{option.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
           <View style={styles.controlsRow}>
             {/* 🌟 ไอคอนแฟลช */}
             <TouchableOpacity style={styles.controlBtn} onPress={() => setFlashMode(!flashMode)}>
@@ -404,10 +426,15 @@ const styles = StyleSheet.create({
   mealText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
   
   bottomSection: { position: 'absolute', bottom: 0, width: '100%', paddingBottom: 40 },
-  tabsContainer: { flexDirection: 'row', justifyContent: 'center', paddingHorizontal: 20, marginBottom: 30 },
+  tabsContainer: { flexDirection: 'row', justifyContent: 'center', paddingHorizontal: 20, marginBottom: 18 },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderColor: 'rgba(255,255,255,0.3)', marginHorizontal: 5 },
   activeTab: { backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 15, borderBottomWidth: 0 },
   tabText: { color: '#888', marginTop: 8, fontSize: 12, fontWeight: 'bold' },
+  portionSelector: { flexDirection: 'row', alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.48)', borderRadius: 18, padding: 4, marginBottom: 22 },
+  portionOption: { minWidth: 76, alignItems: 'center', paddingVertical: 9, paddingHorizontal: 12, borderRadius: 14 },
+  portionOptionActive: { backgroundColor: '#FFF' },
+  portionOptionText: { color: '#DDD', fontSize: 13, fontWeight: '800' },
+  portionOptionTextActive: { color: '#2E7D32' },
 
   controlsRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingHorizontal: 40 },
   controlBtn: { width: 50, height: 50, borderRadius: 25, borderWidth: 1, borderColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
