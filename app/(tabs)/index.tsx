@@ -28,7 +28,7 @@ export default function DashboardScreen() {
   const { 
     mealsData, removeFoodFromMeal,
     waterIntake, setWaterIntake, waterGoal, setWaterGoal, waterIncrement, setWaterIncrement,
-    dailyTarget, activities, updateActivity
+    dailyTarget, activities, updateActivity, deleteActivity
   } = useAppContext();
 
   const mealsCategories = [
@@ -118,6 +118,9 @@ export default function DashboardScreen() {
     });
     setActivityEditVisible(false);
     setEditingActivityId(null);
+  };
+  const handleDeleteActivity = (activityId: string) => {
+    deleteActivity(activityId);
   };
 
   const totalGlasses = Math.ceil(waterGoal / waterIncrement);
@@ -326,9 +329,14 @@ export default function DashboardScreen() {
                       <Text style={styles.activityListName} numberOfLines={1}>{activity.name}</Text>
                       <Text style={styles.activityListCalories}>{activity.calories.toLocaleString()} kcal</Text>
                     </View>
-                    <TouchableOpacity style={styles.activityEditBtn} onPress={() => openEditActivity(activity.id)}>
-                      <Edit2 size={18} color="#1E88E5" />
-                    </TouchableOpacity>
+                    <View style={styles.activityActions}>
+                      <TouchableOpacity style={styles.activityEditBtn} onPress={() => openEditActivity(activity.id)}>
+                        <Edit2 size={18} color="#1E88E5" />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.activityDeleteBtn} onPress={() => handleDeleteActivity(activity.id)}>
+                        <Trash2 size={18} color="#FF5252" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 ))}
               </ScrollView>
@@ -489,7 +497,9 @@ const styles = StyleSheet.create({
   activityListInfo: { flex: 1, marginRight: 12 },
   activityListName: { fontSize: 16, color: '#222', fontWeight: '800', marginBottom: 4 },
   activityListCalories: { fontSize: 14, color: '#1E88E5', fontWeight: '700' },
+  activityActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   activityEditBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#E3F2FD', alignItems: 'center', justifyContent: 'center' },
+  activityDeleteBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#FFEBEE', alignItems: 'center', justifyContent: 'center' },
   emptyActivityText: { color: '#888', fontSize: 15, fontWeight: '600', textAlign: 'center', paddingVertical: 24 },
   activityEditLabel: { color: '#666', fontSize: 13, fontWeight: '700', marginBottom: 8 },
   activityEditInput: { borderWidth: 1.5, borderColor: '#DDEEFF', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 13, fontSize: 18, color: '#222', marginBottom: 16, fontWeight: '700' },

@@ -50,6 +50,7 @@ interface AppContextType {
   activities: ActivityItem[];
   addActivity: (activity: Omit<ActivityItem, 'id'>) => void;
   updateActivity: (activityId: string, updates: Partial<Omit<ActivityItem, 'id'>>) => void;
+  deleteActivity: (activityId: string) => void;
   dailyTarget: number;
   setDailyTarget: (val: number) => void;
   userProfile: UserProfile;
@@ -362,6 +363,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const deleteActivity = (activityId: string) => {
+    setActivities(prev => prev.filter(activity => activity.id !== activityId));
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -377,6 +382,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         activities,
         addActivity,
         updateActivity,
+        deleteActivity,
         dailyTarget,
         setDailyTarget,
         userProfile,
