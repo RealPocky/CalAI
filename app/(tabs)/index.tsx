@@ -87,6 +87,8 @@ export default function DashboardScreen() {
   const [showIncrementPicker, setShowIncrementPicker] = useState(false);
   const [activityListVisible, setActivityListVisible] = useState(false);
   const [activityEditVisible, setActivityEditVisible] = useState(false);
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [pendingDeleteActivityId, setPendingDeleteActivityId] = useState<string | null>(null);
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
   const [editingActivityName, setEditingActivityName] = useState('');
   const [editingActivityCalories, setEditingActivityCalories] = useState('');
@@ -120,7 +122,18 @@ export default function DashboardScreen() {
     setEditingActivityId(null);
   };
   const handleDeleteActivity = (activityId: string) => {
-    deleteActivity(activityId);
+    setPendingDeleteActivityId(activityId);
+    setDeleteConfirmVisible(true);
+  };
+  const confirmDeleteActivity = () => {
+    if (!pendingDeleteActivityId) return;
+    deleteActivity(pendingDeleteActivityId);
+    setPendingDeleteActivityId(null);
+    setDeleteConfirmVisible(false);
+  };
+  const cancelDeleteActivity = () => {
+    setPendingDeleteActivityId(null);
+    setDeleteConfirmVisible(false);
   };
 
   const totalGlasses = Math.ceil(waterGoal / waterIncrement);
@@ -374,6 +387,23 @@ export default function DashboardScreen() {
         </View>
       </Modal>
 
+      <Modal animationType="fade" transparent={true} visible={deleteConfirmVisible} onRequestClose={cancelDeleteActivity}>
+        <View style={styles.waterModalBackdrop}>
+          <View style={styles.deleteConfirmCard}>
+            <Text style={styles.deleteConfirmTitle}>ลบกิจกรรมนี้?</Text>
+            <Text style={styles.deleteConfirmText}>รายการนี้จะถูกลบออกจากกิจกรรมวันนี้ และยอดแคลอรี่ที่เผาผลาญจะอัปเดตทันที</Text>
+            <View style={styles.deleteConfirmActions}>
+              <TouchableOpacity style={styles.cancelDeleteBtn} onPress={cancelDeleteActivity}>
+                <Text style={styles.cancelDeleteText}>ยกเลิก</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.confirmDeleteBtn} onPress={confirmDeleteActivity}>
+                <Text style={styles.confirmDeleteText}>ลบ</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <Modal animationType="slide" transparent={false} visible={settingsModalVisible} onRequestClose={() => setSettingsModalVisible(false)}>
         <SafeAreaView style={styles.settingsSafeArea}>
           <View style={styles.settingsHeader}>
@@ -503,6 +533,14 @@ const styles = StyleSheet.create({
   emptyActivityText: { color: '#888', fontSize: 15, fontWeight: '600', textAlign: 'center', paddingVertical: 24 },
   activityEditLabel: { color: '#666', fontSize: 13, fontWeight: '700', marginBottom: 8 },
   activityEditInput: { borderWidth: 1.5, borderColor: '#DDEEFF', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 13, fontSize: 18, color: '#222', marginBottom: 16, fontWeight: '700' },
+  deleteConfirmCard: { backgroundColor: '#FFF', width: '84%', borderRadius: 22, padding: 24, alignItems: 'center' },
+  deleteConfirmTitle: { fontSize: 20, color: '#222', fontWeight: '800', marginBottom: 8 },
+  deleteConfirmText: { fontSize: 14, color: '#666', textAlign: 'center', lineHeight: 20, marginBottom: 22 },
+  deleteConfirmActions: { flexDirection: 'row', width: '100%' },
+  cancelDeleteBtn: { flex: 1, borderWidth: 1, borderColor: '#DDD', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginRight: 8 },
+  cancelDeleteText: { color: '#444', fontSize: 16, fontWeight: '800' },
+  confirmDeleteBtn: { flex: 1, backgroundColor: '#FF3B30', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginLeft: 8 },
+  confirmDeleteText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
 
   settingsSafeArea: { flex: 1, backgroundColor: '#FFF' },
   settingsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
