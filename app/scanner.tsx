@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Dimensions, ActivityIndicator, Alert, Animated, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { useRouter } from 'expo-router';
 // 🌟 ใช้ SVG Icons แทนทั้งหมด
 import { X, ChevronDown, Info, Camera as CameraIcon, Tag, Zap, ZapOff, Image as ImageIcon, Sparkles, Pencil } from 'lucide-react-native';
@@ -12,6 +13,8 @@ import { API_BASE_URL, useAppContext } from '../src/AppContext';
 
 const { width, height } = Dimensions.get('window');
 const scanAreaSize = Math.min(width * 0.86, height * 0.5);
+const MAX_IMAGE_SIZE = 800;
+const IMAGE_QUALITY = 0.45;
 
 export default function ScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -34,6 +37,32 @@ export default function ScannerScreen() {
   const [editFat, setEditFat] = useState('0');
 
   const scanAnim = useRef(new Animated.Value(0)).current;
+
+  const compressImageToBase64 = async (uri: string, imageWidth?: number, imageHeight?: number) => {
+    const longestSide = Math.max(imageWidth || 0, imageHeight || 0);
+    const resize =
+      longestSide > MAX_IMAGE_SIZE && imageWidth && imageHeight
+        ? imageWidth >= imageHeight
+          ? { width: MAX_IMAGE_SIZE }
+          : { height: MAX_IMAGE_SIZE }
+        : undefined;
+
+    const result = await ImageManipulator.manipulateAsync(
+      uri,
+      resize ? [{ resize }] : [],
+      {
+        compress: IMAGE_QUALITY,
+        format: ImageManipulator.SaveFormat.JPEG,
+        base64: true,
+      }
+    );
+
+    if (!result.base64) {
+      throw new Error('Compressed image is missing base64 data');
+    }
+
+    return result.base64;
+  };
 
   useEffect(() => {
     Animated.loop(
@@ -144,8 +173,11 @@ export default function ScannerScreen() {
     if (cameraRef.current) {
       if (isLoading) return; 
       try {
-        const photo = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.5, skipProcessing: false });
-        if (photo && photo.base64) analyzeImage(photo.base64); 
+        const photo = await cameraRef.current.takePictureAsync({ quality: IMAGE_QUALITY, skipProcessing: false });
+        if (photo?.uri) {
+          const compressedBase64 = await compressImageToBase64(photo.uri, photo.width, photo.height);
+          analyzeImage(compressedBase64);
+        }
       } catch (error) {
         console.error("Error taking picture:", error);
       }
@@ -157,11 +189,13 @@ export default function ScannerScreen() {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [4, 3],
-      quality: 0.5, 
-      base64: true,
+      quality: IMAGE_QUALITY,
+      base64: false,
     });
-    if (!result.canceled && result.assets[0].base64) {
-      analyzeImage(result.assets[0].base64);
+    if (!result.canceled && result.assets[0].uri) {
+      const asset = result.assets[0];
+      const compressedBase64 = await compressImageToBase64(asset.uri, asset.width, asset.height);
+      analyzeImage(compressedBase64);
     }
   };
 
