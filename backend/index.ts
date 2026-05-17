@@ -172,18 +172,19 @@ app.post('/api/analyze-food', async (req, res) => {
       },
     });
 
-    const prompt = `You are a Thai food nutrition analyzer.
-Analyze the food in this image and return only valid JSON. Do not include markdown, comments, or explanations.
-Use Thai for the food name when possible.
-
-Required JSON shape:
-{"name":"ชื่ออาหาร","calories":0,"protein":0,"carbs":0,"fat":0}
-
-Rules:
-- calories, protein, carbs, and fat must be numbers.
-- Estimate nutrition for one visible serving.
-- If the image is not food, return only:
-{"error":"นี่ไม่ใช่รูปอาหาร ลองสแกนใหม่อีกครั้งนะครับ"}`;
+    const prompt = `คุณคือนักโภชนาการและผู้เชี่ยวชาญด้านอาหารไทยระดับสูง หน้าที่ของคุณคือวิเคราะห์รูปภาพอาหารและประเมินสารอาหารให้แม่นยำที่สุด
+กฎเหล็กในการวิเคราะห์:
+1. ความละเอียดขั้นสุด: ระบุชนิดอาหารและวิธีปรุงให้แม่นยำ แยกแยะความแตกต่างให้ขาด เช่น ไข่ดาว (ขอบกรอบ ตรงกลางมีไข่แดง), ไข่เจียว (ฟู เนื้อเดียวกัน), หมูกรอบ (มีชั้นหนังกรอบและมัน)
+2. ระวังแคลอรี่แฝง (Hidden Calories): อาหารไทยประเภทผัด (เช่น กะเพรา) มักมีน้ำมันพืชขังอยู่ และของทอดมักจะอมน้ำมัน ให้บวกแคลอรี่เผื่อน้ำมัน น้ำตาล และเครื่องปรุงที่ซ่อนอยู่อย่างสมเหตุสมผล
+3. การประเมินปริมาณ: วิเคราะห์จากขนาดกล่องพลาสติกมาตรฐาน หรือจานข้าวปกติ เพื่อกะปริมาณกรัมที่แม่นยำ
+4. กฎการตอบกลับ: ให้ตอบกลับเป็น JSON Format ที่ถูกต้องเท่านั้น ห้ามมีข้อความเกริ่นนำหรือลงท้ายใดๆ โครงสร้าง JSON ต้องเป็นดังนี้:
+{
+  "name": "ชื่ออาหารภาษาไทยแบบลงรายละเอียด (เช่น ข้าวกะเพราหมูกรอบไข่ดาว)",
+  "calories": ตัวเลขจำนวนเต็ม,
+  "protein": ตัวเลขจำนวนเต็ม,
+  "carbs": ตัวเลขจำนวนเต็ม,
+  "fat": ตัวเลขจำนวนเต็ม
+}`;
 
     const result = await model.generateContent([
       prompt,
