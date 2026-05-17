@@ -107,7 +107,8 @@ export default function TabLayout() {
                   value={exerciseInput}
                   onChangeText={setExerciseInput}
                   keyboardType="numeric"
-                  placeholder="300"
+                  placeholder="0"
+                  placeholderTextColor="#BDBDBD"
                   style={styles.exerciseInput}
                   autoFocus
                 />
