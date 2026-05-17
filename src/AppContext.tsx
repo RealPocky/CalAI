@@ -28,7 +28,7 @@ export interface UserProfile {
   targetWeight: string;
   targetDate: Date | null;
   activityLevel: number;
-  lossPace: 'gradual' | 'normal' | 'aggressive';
+  lossPace: 'gradual' | 'normal' | 'aggressive' | null;
 }
 
 interface AppContextType {
@@ -67,7 +67,7 @@ const defaultUserProfile: UserProfile = {
   targetWeight: '',
   targetDate: null,
   activityLevel: 0,
-  lossPace: 'normal',
+  lossPace: null,
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -241,7 +241,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     AsyncStorage.setItem('user_water_goal', waterGoal.toString());
     AsyncStorage.setItem('user_water_increment', waterIncrement.toString());
     AsyncStorage.setItem('user_daily_target', dailyTarget.toString());
-    AsyncStorage.setItem('user_loss_pace', userProfile.lossPace);
+    AsyncStorage.setItem('user_loss_pace', userProfile.lossPace ?? '');
     AsyncStorage.setItem('user_exercise_calories', exerciseCalories.toString());
   }, [mealsData, waterIntake, waterGoal, waterIncrement, dailyTarget, userProfile.lossPace, exerciseCalories, isLoaded]);
 

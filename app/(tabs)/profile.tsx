@@ -23,6 +23,7 @@ const lossPaceOptions = [
   { key: 'normal', label: 'ปกติ', deficit: 500, weeklyLoss: 0.5 },
   { key: 'aggressive', label: 'เร่งด่วน', deficit: 750, weeklyLoss: 0.7 },
 ] as const;
+const DANGER_COLOR = '#FF3B30';
 
 const weightOptions = Array.from({length: 171}, (_, i) => (i + 30).toString()); 
 const heightOptions = Array.from({length: 151}, (_, i) => (i + 100).toString()); 
@@ -112,7 +113,7 @@ export default function ProfileScreen() {
   const setDob = (dob: Date | null) => setUserProfile(prev => ({ ...prev, dob }));
   const setTargetDate = (targetDate: Date | null) => setUserProfile(prev => ({ ...prev, targetDate }));
   const setActivityMultiplier = (activityLevel: number) => setUserProfile(prev => ({ ...prev, activityLevel }));
-  const setLossPace = (lossPace: typeof lossPaceOptions[number]['key']) => setUserProfile(prev => ({ ...prev, lossPace }));
+  const setLossPace = (lossPace: typeof lossPaceOptions[number]['key'] | null) => setUserProfile(prev => ({ ...prev, lossPace }));
   
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [datePickerMode, setDatePickerMode] = useState<'dob' | 'target'>('dob');
@@ -172,30 +173,53 @@ export default function ProfileScreen() {
   const handleConfirmDate = () => {
     const newDate = new Date(tempYear, tempMonth, tempDay);
     if (datePickerMode === 'dob') setDob(newDate);
-    else setTargetDate(newDate);
+    else {
+      setTargetDate(newDate);
+      setLossPace(null);
+    }
     setShowDatePicker(false);
   };
 
+  const selectLossPacePreset = (option: typeof lossPaceOptions[number]) => {
+    const currentW = parseFloat(weight);
+    const targetW = parseFloat(targetWeight);
+    const weightToLose = currentW - targetW;
+    setLossPace(option.key);
+
+    if (weightToLose > 0) {
+      const daysToGoal = Math.ceil((weightToLose / option.weeklyLoss) * 7);
+      const nextTargetDate = new Date();
+      nextTargetDate.setHours(0, 0, 0, 0);
+      nextTargetDate.setDate(nextTargetDate.getDate() + daysToGoal);
+      setTargetDate(nextTargetDate);
+    }
+  };
+
   const resultData = useMemo(() => {
-    if (!weight || !heightValue || !targetWeight || calculatedAge <= 0) {
+    if (!weight || !heightValue || !targetWeight || !targetDate || calculatedAge <= 0) {
       return { targetCalories: 0, daysLeft: 0, isDangerous: false, weightToLose: 0, bmr: 0, tdee: 0, dailyDeficit: 0, weeklyLoss: 0 }; 
     }
     const currentW = parseFloat(weight);
     const targetW = parseFloat(targetWeight);
     const h = parseFloat(heightValue);
     const weightToLose = currentW - targetW;
-    const selectedPace = lossPaceOptions.find(option => option.key === lossPace) || lossPaceOptions[1];
-    if (weightToLose <= 0) return { targetCalories: 0, daysLeft: 0, isDangerous: false, weightToLose, bmr: 0, tdee: 0, dailyDeficit: 0, weeklyLoss: selectedPace.weeklyLoss };
-    const daysLeft = Math.ceil((weightToLose / selectedPace.weeklyLoss) * 7);
+    if (weightToLose <= 0) return { targetCalories: 0, daysLeft: 0, isDangerous: false, weightToLose, bmr: 0, tdee: 0, dailyDeficit: 0, weeklyLoss: 0 };
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const targetDateAtStart = new Date(targetDate);
+    targetDateAtStart.setHours(0, 0, 0, 0);
+    const daysLeft = Math.ceil((targetDateAtStart.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysLeft <= 0) return { targetCalories: 0, daysLeft: 0, isDangerous: true, weightToLose, bmr: 0, tdee: 0, dailyDeficit: 0, weeklyLoss: 0 };
     let bmr = (10 * currentW) + (6.25 * h) - (5 * calculatedAge);
     bmr = gender === 'male' ? bmr + 5 : bmr - 161;
     const tdee = bmr * (activityMultiplier || 1.2);
-    const targetBeforeSafety = Math.round(tdee - selectedPace.deficit);
+    const dailyDeficit = (weightToLose * 7700) / daysLeft;
+    const targetCalories = Math.round(tdee - dailyDeficit);
     const safeBmr = Math.round(bmr);
-    const targetCalories = Math.max(targetBeforeSafety, safeBmr);
-    const isDangerous = targetBeforeSafety < safeBmr;
-    return { targetCalories, daysLeft, isDangerous, weightToLose, bmr: safeBmr, tdee: Math.round(tdee), dailyDeficit: selectedPace.deficit, weeklyLoss: selectedPace.weeklyLoss };
-  }, [gender, calculatedAge, weight, heightValue, targetWeight, activityMultiplier, lossPace]);
+    const weeklyLoss = (weightToLose / daysLeft) * 7;
+    const isDangerous = targetCalories < safeBmr || weeklyLoss > 1.0;
+    return { targetCalories, daysLeft, isDangerous, weightToLose, bmr: safeBmr, tdee: Math.round(tdee), dailyDeficit: Math.round(dailyDeficit), weeklyLoss };
+  }, [gender, calculatedAge, weight, heightValue, targetWeight, activityMultiplier, targetDate]);
 
   // 🌟 Logic คำนวณ BMI และตำแหน่งลูกศรสำหรับ UI ใหม่
   const bmiValue = useMemo(() => {
@@ -312,7 +336,7 @@ export default function ProfileScreen() {
                     <TouchableOpacity
                       key={option.key}
                       style={[styles.lossPaceOption, isActive && styles.lossPaceOptionActive]}
-                      onPress={() => setLossPace(option.key)}
+                      onPress={() => selectLossPacePreset(option)}
                       activeOpacity={0.8}
                     >
                       <Text style={[styles.lossPaceLabel, isActive && styles.lossPaceLabelActive]}>{option.label}</Text>
@@ -382,18 +406,18 @@ export default function ProfileScreen() {
                 </View>
                 <View style={styles.planBox}>
                   <Text style={styles.planLabel}>ความเร็ว</Text>
-                  <Text style={styles.planValue}>
+                  <Text style={[styles.planValue, resultData.isDangerous && { color: DANGER_COLOR }]}>
                     {resultData.weeklyLoss.toFixed(1)} กก./สัปดาห์
                   </Text>
                 </View>
               </View>
               <View style={styles.dailyBudgetSection}>
                 <Text style={styles.dailyBudgetLabel}>ต้องทานวันละ</Text>
-                <MotiText key={resultData.targetCalories} animate={{ scale: [0.9, 1.1, 1] }} style={[styles.dailyCalorieText, { color: resultData.isDangerous ? '#FF5252' : '#2E7D32' }]}>
+                <MotiText key={resultData.targetCalories} animate={{ scale: [0.9, 1.1, 1] }} style={[styles.dailyCalorieText, { color: resultData.isDangerous ? DANGER_COLOR : '#2E7D32' }]}>
                   {resultData.targetCalories > 0 ? resultData.targetCalories.toLocaleString() : '0'}
-                  <Text style={[styles.smallKcal, { color: resultData.isDangerous ? '#FF5252' : '#666' }]}> kcal</Text>
+                  <Text style={[styles.smallKcal, { color: resultData.isDangerous ? DANGER_COLOR : '#666' }]}> kcal</Text>
                 </MotiText>
-                {resultData.isDangerous && <Text style={styles.warningText}>Target ถูกปรับขึ้นเป็น BMR ขั้นต่ำ {resultData.bmr.toLocaleString()} kcal เพื่อความปลอดภัย</Text>}
+                {resultData.isDangerous && <Text style={styles.warningText}>⚠️ เป้าหมายเร่งด่วนเกินไป อาจส่งผลเสียต่อสุขภาพและระบบเผาผลาญ!</Text>}
               </View>
             </View>
 
