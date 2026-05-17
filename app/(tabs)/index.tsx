@@ -28,7 +28,7 @@ export default function DashboardScreen() {
   const { 
     mealsData, removeFoodFromMeal,
     waterIntake, setWaterIntake, waterGoal, setWaterGoal, waterIncrement, setWaterIncrement,
-    dailyTarget
+    dailyTarget, exerciseCalories
   } = useAppContext();
 
   const mealsCategories = [
@@ -44,7 +44,6 @@ export default function DashboardScreen() {
   const totalCarbs = allFoods.reduce((sum, item) => sum + item.carbs, 0);
   const totalProtein = allFoods.reduce((sum, item) => sum + item.protein, 0);
   const totalFat = allFoods.reduce((sum, item) => sum + item.fat, 0);
-  const exerciseCalories = 0;
 
   // 🌟 การคำนวณสำหรับสร้างวงกลมกราฟแบบ SVG
   const radius = 60; // รัศมีวงกลม

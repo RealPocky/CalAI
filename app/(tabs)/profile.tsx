@@ -19,9 +19,9 @@ const activityOptions = [
 ];
 
 const lossPaceOptions = [
-  { key: 'gradual', label: 'ค่อยเป็นค่อยไป', deficit: 250 },
-  { key: 'normal', label: 'ปกติ', deficit: 500 },
-  { key: 'aggressive', label: 'เร่งด่วน', deficit: 750 },
+  { key: 'gradual', label: 'ค่อยเป็นค่อยไป', deficit: 250, weeklyLoss: 0.2 },
+  { key: 'normal', label: 'ปกติ', deficit: 500, weeklyLoss: 0.5 },
+  { key: 'aggressive', label: 'เร่งด่วน', deficit: 750, weeklyLoss: 0.7 },
 ] as const;
 
 const weightOptions = Array.from({length: 171}, (_, i) => (i + 30).toString()); 
@@ -177,28 +177,25 @@ export default function ProfileScreen() {
   };
 
   const resultData = useMemo(() => {
-    if (!weight || !heightValue || !targetWeight || !targetDate || calculatedAge <= 0) {
-      return { targetCalories: 0, daysLeft: 0, isDangerous: false, weightToLose: 0, bmr: 0, tdee: 0, dailyDeficit: 0 }; 
+    if (!weight || !heightValue || !targetWeight || calculatedAge <= 0) {
+      return { targetCalories: 0, daysLeft: 0, isDangerous: false, weightToLose: 0, bmr: 0, tdee: 0, dailyDeficit: 0, weeklyLoss: 0 }; 
     }
     const currentW = parseFloat(weight);
     const targetW = parseFloat(targetWeight);
     const h = parseFloat(heightValue);
     const weightToLose = currentW - targetW;
-    if (weightToLose <= 0) return { targetCalories: 0, daysLeft: 0, isDangerous: false, weightToLose, bmr: 0, tdee: 0, dailyDeficit: 0 };
-    const today = new Date();
-    const diffTime = targetDate.getTime() - today.getTime();
-    const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    if (daysLeft <= 0) return { targetCalories: 0, daysLeft: 0, isDangerous: true, weightToLose, bmr: 0, tdee: 0, dailyDeficit: 0 };
+    const selectedPace = lossPaceOptions.find(option => option.key === lossPace) || lossPaceOptions[1];
+    if (weightToLose <= 0) return { targetCalories: 0, daysLeft: 0, isDangerous: false, weightToLose, bmr: 0, tdee: 0, dailyDeficit: 0, weeklyLoss: selectedPace.weeklyLoss };
+    const daysLeft = Math.ceil((weightToLose / selectedPace.weeklyLoss) * 7);
     let bmr = (10 * currentW) + (6.25 * h) - (5 * calculatedAge);
     bmr = gender === 'male' ? bmr + 5 : bmr - 161;
     const tdee = bmr * (activityMultiplier || 1.2);
-    const selectedPace = lossPaceOptions.find(option => option.key === lossPace) || lossPaceOptions[1];
     const targetBeforeSafety = Math.round(tdee - selectedPace.deficit);
     const safeBmr = Math.round(bmr);
     const targetCalories = Math.max(targetBeforeSafety, safeBmr);
     const isDangerous = targetBeforeSafety < safeBmr;
-    return { targetCalories, daysLeft, isDangerous, weightToLose, bmr: safeBmr, tdee: Math.round(tdee), dailyDeficit: selectedPace.deficit };
-  }, [gender, calculatedAge, weight, heightValue, targetWeight, activityMultiplier, targetDate, lossPace]);
+    return { targetCalories, daysLeft, isDangerous, weightToLose, bmr: safeBmr, tdee: Math.round(tdee), dailyDeficit: selectedPace.deficit, weeklyLoss: selectedPace.weeklyLoss };
+  }, [gender, calculatedAge, weight, heightValue, targetWeight, activityMultiplier, lossPace]);
 
   // 🌟 Logic คำนวณ BMI และตำแหน่งลูกศรสำหรับ UI ใหม่
   const bmiValue = useMemo(() => {
@@ -386,7 +383,7 @@ export default function ProfileScreen() {
                 <View style={styles.planBox}>
                   <Text style={styles.planLabel}>ความเร็ว</Text>
                   <Text style={styles.planValue}>
-                    {resultData.daysLeft > 0 ? (resultData.weightToLose / (resultData.daysLeft / 7)).toFixed(1) : 0} กก./สัปดาห์
+                    {resultData.weeklyLoss.toFixed(1)} กก./สัปดาห์
                   </Text>
                 </View>
               </View>

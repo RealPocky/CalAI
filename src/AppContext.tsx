@@ -41,6 +41,8 @@ interface AppContextType {
   setWaterGoal: (val: number) => void;
   waterIncrement: number;
   setWaterIncrement: (val: number) => void;
+  exerciseCalories: number;
+  setExerciseCalories: (val: number | ((prev: number) => number)) => void;
   dailyTarget: number;
   setDailyTarget: (val: number) => void;
   userProfile: UserProfile;
@@ -119,6 +121,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [waterIntake, setWaterIntake] = useState(0);
   const [waterGoal, setWaterGoal] = useState(2000);
   const [waterIncrement, setWaterIncrement] = useState(250);
+  const [exerciseCalories, setExerciseCalories] = useState(0);
   const [dailyTarget, setDailyTarget] = useState(0);
   const [userProfile, setUserProfile] = useState<UserProfile>(defaultUserProfile);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -201,10 +204,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         const todayStr = new Date().toLocaleDateString('th-TH');
 
-        const [storedTarget, storedLastDate, storedLossPace] = await Promise.all([
+        const [storedTarget, storedLastDate, storedLossPace, storedExerciseCalories] = await Promise.all([
           AsyncStorage.getItem('user_daily_target'),
           AsyncStorage.getItem('user_last_date'),
           AsyncStorage.getItem('user_loss_pace'),
+          AsyncStorage.getItem('user_exercise_calories'),
         ]);
 
         if (storedTarget) setDailyTarget(parseInt(storedTarget, 10));
@@ -214,6 +218,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         if (storedLastDate !== todayStr) {
           await AsyncStorage.setItem('user_last_date', todayStr);
+          setExerciseCalories(0);
+          await AsyncStorage.setItem('user_exercise_calories', '0');
+        } else if (storedExerciseCalories) {
+          setExerciseCalories(parseInt(storedExerciseCalories, 10) || 0);
         }
       } catch (e) {
         console.error('Failed to load app data', e);
@@ -234,7 +242,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     AsyncStorage.setItem('user_water_increment', waterIncrement.toString());
     AsyncStorage.setItem('user_daily_target', dailyTarget.toString());
     AsyncStorage.setItem('user_loss_pace', userProfile.lossPace);
-  }, [mealsData, waterIntake, waterGoal, waterIncrement, dailyTarget, userProfile.lossPace, isLoaded]);
+    AsyncStorage.setItem('user_exercise_calories', exerciseCalories.toString());
+  }, [mealsData, waterIntake, waterGoal, waterIncrement, dailyTarget, userProfile.lossPace, exerciseCalories, isLoaded]);
 
   const removeFoodFromMeal = async (mealId: keyof MealsData, foodId: string) => {
     try {
@@ -317,6 +326,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setWaterGoal,
         waterIncrement,
         setWaterIncrement,
+        exerciseCalories,
+        setExerciseCalories,
         dailyTarget,
         setDailyTarget,
         userProfile,
