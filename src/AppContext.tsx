@@ -30,6 +30,7 @@ export interface UserProfile {
   gender: '' | 'male' | 'female';
   dob: Date | null;
   weight: string;
+  startingWeight: string;
   height: string;
   targetWeight: string;
   targetDate: Date | null;
@@ -71,6 +72,7 @@ const defaultUserProfile: UserProfile = {
   gender: '',
   dob: null,
   weight: '',
+  startingWeight: '',
   height: '',
   targetWeight: '',
   targetDate: null,
@@ -97,6 +99,7 @@ const mapBackendUserToProfile = (user: any, current: UserProfile): UserProfile =
   gender: user.gender === 'male' || user.gender === 'female' ? user.gender : '',
   dob: toDateOrNull(user.dob) ?? current.dob,
   weight: toTextInputValue(user.weight, current.weight),
+  startingWeight: current.startingWeight || (Number(user.weight) > 0 ? String(Number(user.weight) + 5) : ''),
   height: toTextInputValue(user.height, current.height),
   targetWeight: toTextInputValue(user.targetWeight, current.targetWeight),
   targetDate: toDateOrNull(user.targetDate) ?? current.targetDate,
@@ -212,17 +215,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         const todayStr = new Date().toLocaleDateString('th-TH');
 
-        const [storedTarget, storedLastDate, storedLossPace, storedActivities, storedExerciseCalories] = await Promise.all([
+        const [storedTarget, storedLastDate, storedLossPace, storedActivities, storedExerciseCalories, storedStartingWeight] = await Promise.all([
           AsyncStorage.getItem('user_daily_target'),
           AsyncStorage.getItem('user_last_date'),
           AsyncStorage.getItem('user_loss_pace'),
           AsyncStorage.getItem('user_activities'),
           AsyncStorage.getItem('user_exercise_calories'),
+          AsyncStorage.getItem('user_starting_weight'),
         ]);
 
         if (storedTarget) setDailyTarget(parseInt(storedTarget, 10));
         if (storedLossPace === 'gradual' || storedLossPace === 'normal' || storedLossPace === 'aggressive') {
           setUserProfile(prev => ({ ...prev, lossPace: storedLossPace }));
+        }
+        if (storedStartingWeight) {
+          setUserProfile(prev => ({ ...prev, startingWeight: storedStartingWeight }));
         }
 
         if (storedLastDate !== todayStr) {
@@ -264,9 +271,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     AsyncStorage.setItem('user_water_increment', waterIncrement.toString());
     AsyncStorage.setItem('user_daily_target', dailyTarget.toString());
     AsyncStorage.setItem('user_loss_pace', userProfile.lossPace ?? '');
+    AsyncStorage.setItem('user_starting_weight', userProfile.startingWeight);
     AsyncStorage.setItem('user_activities', JSON.stringify(activities));
     AsyncStorage.setItem('user_exercise_calories', activities.reduce((sum, item) => sum + item.calories, 0).toString());
-  }, [mealsData, waterIntake, waterGoal, waterIncrement, dailyTarget, userProfile.lossPace, activities, isLoaded]);
+  }, [mealsData, waterIntake, waterGoal, waterIncrement, dailyTarget, userProfile.lossPace, userProfile.startingWeight, activities, isLoaded]);
 
   const removeFoodFromMeal = async (mealId: keyof MealsData, foodId: string) => {
     try {
