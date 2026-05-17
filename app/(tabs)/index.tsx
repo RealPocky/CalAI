@@ -28,7 +28,7 @@ export default function DashboardScreen() {
   const { 
     mealsData, removeFoodFromMeal,
     waterIntake, setWaterIntake, waterGoal, setWaterGoal, waterIncrement, setWaterIncrement,
-    dailyTarget, exerciseCalories
+    dailyTarget, activities, updateActivity
   } = useAppContext();
 
   const mealsCategories = [
@@ -44,13 +44,14 @@ export default function DashboardScreen() {
   const totalCarbs = allFoods.reduce((sum, item) => sum + item.carbs, 0);
   const totalProtein = allFoods.reduce((sum, item) => sum + item.protein, 0);
   const totalFat = allFoods.reduce((sum, item) => sum + item.fat, 0);
+  const totalActivityBurned = activities.reduce((sum, item) => sum + item.calories, 0);
 
   // 🌟 การคำนวณสำหรับสร้างวงกลมกราฟแบบ SVG
   const radius = 60; // รัศมีวงกลม
   const strokeWidth = 10; // ความหนาเส้น
   const circumference = 2 * Math.PI * radius; // เส้นรอบวง
   const displayedDailyTarget = dailyTarget > 0 ? dailyTarget : 0;
-  const remainingCalories = Math.max(displayedDailyTarget - totalConsumed + exerciseCalories, 0);
+  const remainingCalories = Math.max(displayedDailyTarget - totalConsumed + totalActivityBurned, 0);
   const calorieFillPercentage = displayedDailyTarget > 0 ? Math.max(0, Math.min((displayedDailyTarget - remainingCalories) / displayedDailyTarget, 1)) : 0;
   const animatedCalorieProgress = useRef(new Animated.Value(0)).current;
   const macroTargets = {
@@ -84,6 +85,11 @@ export default function DashboardScreen() {
   const [tempGoal, setTempGoal] = useState(waterGoal);
   const [tempIncrement, setTempIncrement] = useState(waterIncrement);
   const [showIncrementPicker, setShowIncrementPicker] = useState(false);
+  const [activityListVisible, setActivityListVisible] = useState(false);
+  const [activityEditVisible, setActivityEditVisible] = useState(false);
+  const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
+  const [editingActivityName, setEditingActivityName] = useState('');
+  const [editingActivityCalories, setEditingActivityCalories] = useState('');
 
   const today = new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
 
@@ -95,6 +101,24 @@ export default function DashboardScreen() {
   const resetSettings = () => { setTempGoal(2000); setTempIncrement(250); };
   const addGlassOfWater = () => { setWaterIntake(prev => Math.min(prev + waterIncrement, waterGoal)); };
   const removeGlassOfWater = () => { setWaterIntake(prev => Math.max(prev - waterIncrement, 0)); };
+  const openEditActivity = (activityId: string) => {
+    const activity = activities.find(item => item.id === activityId);
+    if (!activity) return;
+    setEditingActivityId(activity.id);
+    setEditingActivityName(activity.name);
+    setEditingActivityCalories(activity.calories.toString());
+    setActivityListVisible(false);
+    setActivityEditVisible(true);
+  };
+  const saveActivityEdit = () => {
+    if (!editingActivityId) return;
+    updateActivity(editingActivityId, {
+      name: editingActivityName.trim() || 'ออกกำลังกาย',
+      calories: parseInt(editingActivityCalories, 10) || 0,
+    });
+    setActivityEditVisible(false);
+    setEditingActivityId(null);
+  };
 
   const totalGlasses = Math.ceil(waterGoal / waterIncrement);
   const fullGlasses = Math.floor(waterIntake / waterIncrement);
@@ -161,13 +185,13 @@ export default function DashboardScreen() {
                   <Text style={styles.detailValue}>{totalConsumed.toLocaleString()}</Text>
                 </View>
               </View>
-              <View style={styles.detailRow}>
+              <TouchableOpacity style={styles.detailRow} activeOpacity={0.75} onPress={() => setActivityListVisible(true)}>
                 <View style={[styles.detailIconBg, { backgroundColor: '#E3F2FD' }]}><Dumbbell size={20} color="#42A5F5" /></View>
                 <View style={styles.detailTextContainer}>
                   <Text style={styles.detailLabel}>กิจกรรม</Text>
-                  <Text style={styles.detailValue}>{exerciseCalories.toLocaleString()}</Text>
+                  <Text style={styles.detailValue}>{totalActivityBurned.toLocaleString()}</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             </View>
           </View>
         </MotiView>
@@ -281,6 +305,63 @@ export default function DashboardScreen() {
             </View>
             <TextInput style={styles.waterInput} keyboardType="numeric" value={waterInputValue} onChangeText={setWaterInputValue} autoFocus={true}/>
             <TouchableOpacity style={styles.waterSaveBtn} onPress={saveWaterIntake}><Text style={styles.waterSaveBtnText}>ตกลง</Text></TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal animationType="fade" transparent={true} visible={activityListVisible} onRequestClose={() => setActivityListVisible(false)}>
+        <View style={styles.waterModalBackdrop}>
+          <View style={styles.activityModalCard}>
+            <View style={styles.waterModalHeader}>
+              <Text style={styles.waterModalTitle}>กิจกรรมวันนี้</Text>
+              <TouchableOpacity onPress={() => setActivityListVisible(false)} style={styles.closeModalBtn}><X size={24} color="#888" /></TouchableOpacity>
+            </View>
+            {activities.length === 0 ? (
+              <Text style={styles.emptyActivityText}>ยังไม่มีกิจกรรมที่บันทึกไว้</Text>
+            ) : (
+              <ScrollView style={styles.activityList} showsVerticalScrollIndicator={false}>
+                {activities.map(activity => (
+                  <View key={activity.id} style={styles.activityListRow}>
+                    <View style={styles.activityListInfo}>
+                      <Text style={styles.activityListName} numberOfLines={1}>{activity.name}</Text>
+                      <Text style={styles.activityListCalories}>{activity.calories.toLocaleString()} kcal</Text>
+                    </View>
+                    <TouchableOpacity style={styles.activityEditBtn} onPress={() => openEditActivity(activity.id)}>
+                      <Edit2 size={18} color="#1E88E5" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal animationType="fade" transparent={true} visible={activityEditVisible} onRequestClose={() => setActivityEditVisible(false)}>
+        <View style={styles.waterModalBackdrop}>
+          <View style={styles.activityModalCard}>
+            <View style={styles.waterModalHeader}>
+              <Text style={styles.waterModalTitle}>แก้ไขกิจกรรม</Text>
+              <TouchableOpacity onPress={() => setActivityEditVisible(false)} style={styles.closeModalBtn}><X size={24} color="#888" /></TouchableOpacity>
+            </View>
+            <Text style={styles.activityEditLabel}>ชื่อกิจกรรม</Text>
+            <TextInput
+              style={styles.activityEditInput}
+              value={editingActivityName}
+              onChangeText={setEditingActivityName}
+              placeholder="ออกกำลังกาย"
+              placeholderTextColor="#BDBDBD"
+            />
+            <Text style={styles.activityEditLabel}>แคลอรี่ที่เผาผลาญ</Text>
+            <TextInput
+              style={styles.activityEditInput}
+              value={editingActivityCalories}
+              onChangeText={setEditingActivityCalories}
+              keyboardType="numeric"
+              placeholder="0"
+              placeholderTextColor="#BDBDBD"
+            />
+            <TouchableOpacity style={styles.waterSaveBtn} onPress={saveActivityEdit}><Text style={styles.waterSaveBtnText}>บันทึก</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -402,6 +483,16 @@ const styles = StyleSheet.create({
   waterInput: { borderWidth: 1.5, borderColor: '#66BB6A', borderRadius: 12, paddingHorizontal: 20, paddingVertical: 15, fontSize: 18, color: '#333', marginBottom: 25 },
   waterSaveBtn: { backgroundColor: '#66BB6A', paddingVertical: 15, borderRadius: 12, alignItems: 'center' },
   waterSaveBtnText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
+  activityModalCard: { backgroundColor: '#FFF', width: '88%', maxHeight: '75%', padding: 25, borderRadius: 24 },
+  activityList: { maxHeight: 340 },
+  activityListRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F7FBFF', borderRadius: 14, padding: 14, marginBottom: 10 },
+  activityListInfo: { flex: 1, marginRight: 12 },
+  activityListName: { fontSize: 16, color: '#222', fontWeight: '800', marginBottom: 4 },
+  activityListCalories: { fontSize: 14, color: '#1E88E5', fontWeight: '700' },
+  activityEditBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#E3F2FD', alignItems: 'center', justifyContent: 'center' },
+  emptyActivityText: { color: '#888', fontSize: 15, fontWeight: '600', textAlign: 'center', paddingVertical: 24 },
+  activityEditLabel: { color: '#666', fontSize: 13, fontWeight: '700', marginBottom: 8 },
+  activityEditInput: { borderWidth: 1.5, borderColor: '#DDEEFF', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 13, fontSize: 18, color: '#222', marginBottom: 16, fontWeight: '700' },
 
   settingsSafeArea: { flex: 1, backgroundColor: '#FFF' },
   settingsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },

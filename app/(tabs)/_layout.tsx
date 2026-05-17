@@ -7,9 +7,10 @@ import { useAppContext } from '../../src/AppContext';
 
 export default function TabLayout() {
   const router = useRouter();
-  const { setExerciseCalories } = useAppContext();
+  const { addActivity } = useAppContext();
   const [actionMenuVisible, setActionMenuVisible] = useState(false);
   const [exerciseModalVisible, setExerciseModalVisible] = useState(false);
+  const [exerciseName, setExerciseName] = useState('');
   const [exerciseInput, setExerciseInput] = useState('');
 
   const openScanner = () => {
@@ -19,13 +20,14 @@ export default function TabLayout() {
 
   const openExerciseModal = () => {
     setActionMenuVisible(false);
+    setExerciseName('');
     setExerciseInput('');
     setExerciseModalVisible(true);
   };
 
   const saveExercise = () => {
     const burned = Math.max(0, parseInt(exerciseInput, 10) || 0);
-    setExerciseCalories(prev => prev + burned);
+    addActivity({ name: exerciseName.trim() || 'ออกกำลังกาย', calories: burned });
     setExerciseModalVisible(false);
   };
 
@@ -101,6 +103,16 @@ export default function TabLayout() {
                   <X size={22} color="#777" />
                 </TouchableOpacity>
               </View>
+              <Text style={styles.exerciseLabel}>ชื่อกิจกรรม</Text>
+              <View style={styles.exerciseInputRow}>
+                <TextInput
+                  value={exerciseName}
+                  onChangeText={setExerciseName}
+                  placeholder="เช่น วิ่ง"
+                  placeholderTextColor="#BDBDBD"
+                  style={[styles.exerciseInput, styles.exerciseNameInput]}
+                />
+              </View>
               <Text style={styles.exerciseLabel}>แคลอรี่ที่เผาผลาญ</Text>
               <View style={styles.exerciseInputRow}>
                 <TextInput
@@ -140,6 +152,7 @@ const styles = StyleSheet.create({
   exerciseLabel: { color: '#666', fontSize: 14, fontWeight: '700', marginBottom: 8 },
   exerciseInputRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#DDEEDD', borderRadius: 14, paddingHorizontal: 14, marginBottom: 18 },
   exerciseInput: { flex: 1, fontSize: 28, fontWeight: '800', color: '#222', paddingVertical: 12 },
+  exerciseNameInput: { fontSize: 18, fontWeight: '700' },
   exerciseUnit: { fontSize: 16, color: '#777', fontWeight: '700' },
   saveExerciseButton: { backgroundColor: '#1B5E20', borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
   saveExerciseText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
