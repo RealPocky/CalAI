@@ -164,9 +164,10 @@ app.post('/api/analyze-food', async (req, res) => {
     }
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.5-flash-lite',
       generationConfig: {
         temperature: 0.1,
+        maxOutputTokens: 150,
         responseMimeType: 'application/json',
       },
     });
