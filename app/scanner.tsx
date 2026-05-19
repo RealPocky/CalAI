@@ -38,7 +38,7 @@ export default function ScannerScreen() {
   
   const { addFoodToMeal } = useAppContext();
   
-  const [flashMode, setFlashMode] = useState(false);
+  const [isFlashOn, setIsFlashOn] = useState(false);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [activeTab, setActiveTab] = useState('scan'); 
   const [portionSize, setPortionSize] = useState<typeof portionOptions[number]['key']>('normal');
@@ -105,12 +105,8 @@ export default function ScannerScreen() {
   }, [mealId]);
 
   useEffect(() => {
-    return () => setFlashMode(false);
+    return () => setIsFlashOn(false);
   }, []);
-
-  const toggleFlash = () => {
-    setFlashMode(current => !current);
-  };
 
   const analyzeImage = async (base64Image: string) => {
     setIsLoading(true); 
@@ -272,12 +268,12 @@ export default function ScannerScreen() {
         ref={cameraRef}
         style={StyleSheet.absoluteFillObject}
         facing="back"
-        flash={flashMode ? 'on' : 'off'}
-        enableTorch={isCameraReady && flashMode}
+        flash={isFlashOn ? 'on' : 'off'}
+        enableTorch={isCameraReady && isFlashOn}
         onCameraReady={() => setIsCameraReady(true)}
         onMountError={() => {
           setIsCameraReady(false);
-          setFlashMode(false);
+          setIsFlashOn(false);
         }}
       />
         <View pointerEvents="none" style={styles.massiveBorder} />
@@ -343,11 +339,11 @@ export default function ScannerScreen() {
           <View style={styles.controlsRow}>
             {/* 🌟 ไอคอนแฟลช */}
             <TouchableOpacity
-              style={[styles.controlBtn, flashMode && styles.controlBtnActive, !isCameraReady && styles.controlBtnDisabled]}
-              onPress={toggleFlash}
+              style={[styles.controlBtn, isFlashOn && styles.controlBtnActive, !isCameraReady && styles.controlBtnDisabled]}
+              onPress={() => setIsFlashOn(!isFlashOn)}
               disabled={!isCameraReady}
             >
-              {flashMode ? <Zap size={24} color="#FFF" /> : <ZapOff size={24} color="#FFF" />}
+              {isFlashOn ? <Zap size={24} color="#FFD54F" /> : <ZapOff size={24} color="#FFF" />}
             </TouchableOpacity>
             <TouchableOpacity activeOpacity={0.8} style={styles.captureOuter} onPress={takePicture}>
               <View style={styles.captureInner} />
@@ -476,7 +472,7 @@ const styles = StyleSheet.create({
 
   controlsRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingHorizontal: 40 },
   controlBtn: { width: 50, height: 50, borderRadius: 25, borderWidth: 1, borderColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
-  controlBtnActive: { backgroundColor: 'rgba(76,175,80,0.75)', borderColor: '#4CAF50' },
+  controlBtnActive: { backgroundColor: 'rgba(255,213,79,0.22)', borderColor: '#FFD54F' },
   controlBtnDisabled: { opacity: 0.45 },
   captureOuter: { width: 80, height: 80, borderRadius: 40, borderWidth: 4, borderColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
   captureInner: { width: 68, height: 68, borderRadius: 34, backgroundColor: '#FFF' },
