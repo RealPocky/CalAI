@@ -1,5 +1,6 @@
-import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import React, { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState } from 'react-native';
 
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000';
 
@@ -127,6 +128,8 @@ const emptyMeals = (): MealsData => ({
 const isMealId = (value: string): value is keyof MealsData =>
   value === 'breakfast' || value === 'lunch' || value === 'dinner' || value === 'snack';
 
+const getTodayStorageKey = () => new Date().toLocaleDateString('th-TH');
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [mealsData, setMealsData] = useState<MealsData>(emptyMealsData);
   const [waterIntake, setWaterIntake] = useState(0);
@@ -207,17 +210,59 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const saveWaterToBackend = useCallback(async (currentWater: number) => {
+    const response = await fetch(`${API_BASE_URL}/api/water`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentWater }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Save water failed with status ${response.status}`);
+    }
+  }, []);
+
+  const resetDailyTracking = useCallback(async (todayStr = getTodayStorageKey()) => {
+    setMealsData(emptyMeals());
+    setWaterIntake(0);
+    setActivities([]);
+
+    await Promise.all([
+      AsyncStorage.setItem('user_last_date', todayStr),
+      AsyncStorage.setItem('user_meals_diary', JSON.stringify(emptyMeals())),
+      AsyncStorage.setItem('user_water_intake', '0'),
+      AsyncStorage.setItem('user_activities', '[]'),
+      AsyncStorage.setItem('user_exercise_calories', '0'),
+      saveWaterToBackend(0).catch(error => console.error('Failed to reset water for new day', error)),
+    ]);
+  }, [saveWaterToBackend]);
+
+  const resetIfNewDay = useCallback(async () => {
+    const todayStr = getTodayStorageKey();
+    const storedLastDate = await AsyncStorage.getItem('user_last_date');
+
+    if (storedLastDate && storedLastDate !== todayStr) {
+      await resetDailyTracking(todayStr);
+      return true;
+    }
+
+    if (!storedLastDate) {
+      await AsyncStorage.setItem('user_last_date', todayStr);
+    }
+
+    return false;
+  }, [resetDailyTracking]);
+
   useEffect(() => {
     const loadData = async () => {
       try {
         await syncUserWithBackend();
         await syncMealsWithBackend();
 
-        const todayStr = new Date().toLocaleDateString('th-TH');
+        const didResetForNewDay = await resetIfNewDay();
 
-        const [storedTarget, storedLastDate, storedLossPace, storedActivities, storedExerciseCalories, storedStartingWeight] = await Promise.all([
+        const [storedTarget, storedLossPace, storedActivities, storedExerciseCalories, storedStartingWeight] = await Promise.all([
           AsyncStorage.getItem('user_daily_target'),
-          AsyncStorage.getItem('user_last_date'),
           AsyncStorage.getItem('user_loss_pace'),
           AsyncStorage.getItem('user_activities'),
           AsyncStorage.getItem('user_exercise_calories'),
@@ -232,12 +277,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setUserProfile(prev => ({ ...prev, startingWeight: storedStartingWeight }));
         }
 
-        if (storedLastDate !== todayStr) {
-          await AsyncStorage.setItem('user_last_date', todayStr);
-          setActivities([]);
-          await AsyncStorage.setItem('user_activities', '[]');
-          await AsyncStorage.setItem('user_exercise_calories', '0');
-        } else if (storedActivities) {
+        if (didResetForNewDay) {
+          return;
+        }
+
+        if (storedActivities) {
           const parsedActivities = JSON.parse(storedActivities);
           if (Array.isArray(parsedActivities)) {
             setActivities(parsedActivities.map(item => ({
@@ -260,7 +304,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     loadData();
-  }, []);
+  }, [resetIfNewDay]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    const subscription = AppState.addEventListener('change', nextState => {
+      if (nextState === 'active') {
+        resetIfNewDay().catch(error => console.error('Failed to reset app data for new day', error));
+      }
+    });
+
+    const intervalId = setInterval(() => {
+      resetIfNewDay().catch(error => console.error('Failed to reset app data for new day', error));
+    }, 60 * 1000);
+
+    return () => {
+      subscription.remove();
+      clearInterval(intervalId);
+    };
+  }, [isLoaded, resetIfNewDay]);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -289,18 +352,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setMealsData(prev => ({ ...prev, [mealId]: prev[mealId].filter(f => f.id !== foodId) }));
     } catch (error) {
       console.error('Failed to delete meal', error);
-    }
-  };
-
-  const saveWaterToBackend = async (currentWater: number) => {
-    const response = await fetch(`${API_BASE_URL}/api/water`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ currentWater }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Save water failed with status ${response.status}`);
     }
   };
 

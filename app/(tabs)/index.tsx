@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Dimensions, Modal, TextInput, Keyboard, Platform, Animated } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Modal, TextInput, Keyboard, Platform, Animated, KeyboardAvoidingView } from 'react-native';
 // 🌟 เปลี่ยนมาใช้ไอคอนแบบ SVG ของ Lucide แทนIoniconsเพื่อweb
-import { LayoutDashboard, BookText, Plus, Target, Flame, ChevronLeft, ChevronUp, ChevronDown, Check, Droplets, Trash2, Edit2, X, MoreHorizontal, Dumbbell } from 'lucide-react-native';
+import { Plus, Target, Flame, ChevronLeft, ChevronUp, ChevronDown, Trash2, Edit2, X, MoreHorizontal, Dumbbell, Camera, Utensils } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { MotiView } from 'moti';
 import Slider from '@react-native-community/slider';
@@ -9,10 +9,10 @@ import Svg, { Circle } from 'react-native-svg'; // 🌟 ตัวช่วยส
 
 import { useAppContext } from '../../src/AppContext';
 
-const { width } = Dimensions.get('window');
 const incrementOptions = [100, 150, 200, 250, 500, 750, 1000, 1250, 1500, 1750, 2000];
 const ITEM_HEIGHT = 50; 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+type MealId = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
 // 🌟 ตัวแปรแมปไอคอนมื้ออาหารแบบ SVG
 const mealIcons = {
@@ -26,12 +26,12 @@ export default function DashboardScreen() {
   const router = useRouter();
   
   const { 
-    mealsData, removeFoodFromMeal,
+    mealsData, addFoodToMeal, removeFoodFromMeal,
     waterIntake, setWaterIntake, waterGoal, setWaterGoal, waterIncrement, setWaterIncrement,
     dailyTarget, activities, updateActivity, deleteActivity
   } = useAppContext();
 
-  const mealsCategories = [
+  const mealsCategories: { id: MealId; name: string; target: number }[] = [
     { id: 'breakfast', name: 'อาหารเช้า', target: 580 },
     { id: 'lunch', name: 'อาหารกลางวัน', target: 650 },
     { id: 'dinner', name: 'อาหารเย็น', target: 500 },
@@ -92,6 +92,14 @@ export default function DashboardScreen() {
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
   const [editingActivityName, setEditingActivityName] = useState('');
   const [editingActivityCalories, setEditingActivityCalories] = useState('');
+  const [mealActionVisible, setMealActionVisible] = useState(false);
+  const [manualFoodVisible, setManualFoodVisible] = useState(false);
+  const [selectedMealId, setSelectedMealId] = useState<MealId | null>(null);
+  const [manualFoodName, setManualFoodName] = useState('');
+  const [manualCalories, setManualCalories] = useState('');
+  const [manualProtein, setManualProtein] = useState('');
+  const [manualCarbs, setManualCarbs] = useState('');
+  const [manualFat, setManualFat] = useState('');
 
   const today = new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
 
@@ -103,6 +111,38 @@ export default function DashboardScreen() {
   const resetSettings = () => { setTempGoal(2000); setTempIncrement(250); };
   const addGlassOfWater = () => { setWaterIntake(prev => Math.min(prev + waterIncrement, waterGoal)); };
   const removeGlassOfWater = () => { setWaterIntake(prev => Math.max(prev - waterIncrement, 0)); };
+  const getSelectedMealName = () => mealsCategories.find(meal => meal.id === selectedMealId)?.name || 'มื้อนี้';
+  const openMealActions = (mealId: MealId) => {
+    setSelectedMealId(mealId);
+    setMealActionVisible(true);
+  };
+  const scanSelectedMeal = () => {
+    if (!selectedMealId) return;
+    setMealActionVisible(false);
+    router.push({ pathname: '/scanner', params: { mealId: selectedMealId } });
+  };
+  const openManualFood = () => {
+    setMealActionVisible(false);
+    setManualFoodName('');
+    setManualCalories('');
+    setManualProtein('');
+    setManualCarbs('');
+    setManualFat('');
+    setManualFoodVisible(true);
+  };
+  const saveManualFood = () => {
+    if (!selectedMealId) return;
+    addFoodToMeal(selectedMealId, {
+      id: Date.now().toString(),
+      name: manualFoodName.trim() || 'อาหาร',
+      calories: Math.max(0, parseInt(manualCalories, 10) || 0),
+      protein: Math.max(0, parseInt(manualProtein, 10) || 0),
+      carbs: Math.max(0, parseInt(manualCarbs, 10) || 0),
+      fat: Math.max(0, parseInt(manualFat, 10) || 0),
+    });
+    Keyboard.dismiss();
+    setManualFoodVisible(false);
+  };
   const openEditActivity = (activityId: string) => {
     const activity = activities.find(item => item.id === activityId);
     if (!activity) return;
@@ -253,7 +293,7 @@ export default function DashboardScreen() {
                   </Text>
                 </View>
                 {/* ไอคอนบวกแบบ SVG/web-safe */}
-                <TouchableOpacity style={styles.addButton} activeOpacity={0.7} onPress={() => router.push('/scanner')}>
+                <TouchableOpacity style={styles.addButton} activeOpacity={0.7} onPress={() => openMealActions(meal.id)}>
                   <Plus size={24} color="#4CAF50" />
                 </TouchableOpacity>
               </MotiView>
@@ -312,6 +352,61 @@ export default function DashboardScreen() {
       </ScrollView>
 
       {/* 🌟 โมดอลต่างๆ แก้ไขไอคอนเป็น SVG/web-safe */}
+      <Modal animationType="fade" transparent={true} visible={mealActionVisible} onRequestClose={() => setMealActionVisible(false)}>
+        <TouchableOpacity style={styles.actionBackdrop} activeOpacity={1} onPress={() => setMealActionVisible(false)}>
+          <View style={styles.foodActionSheet}>
+            <View style={styles.foodActionHeader}>
+              <Text style={styles.foodActionTitle}>{getSelectedMealName()}</Text>
+              <TouchableOpacity onPress={() => setMealActionVisible(false)} style={styles.closeModalBtn}><X size={22} color="#888" /></TouchableOpacity>
+            </View>
+            <TouchableOpacity style={styles.foodActionItem} onPress={scanSelectedMeal}>
+              <View style={[styles.foodActionIcon, { backgroundColor: '#E8F5E9' }]}><Camera size={22} color="#2E7D32" /></View>
+              <View style={styles.foodActionTextWrap}>
+                <Text style={styles.foodActionText}>สแกนอาหารด้วยกล้อง</Text>
+                <Text style={styles.foodActionSubText}>ถ่ายรูปแล้วให้ AI ช่วยประเมิน</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.foodActionItem} onPress={openManualFood}>
+              <View style={[styles.foodActionIcon, { backgroundColor: '#FFF3E0' }]}><Utensils size={22} color="#FB8C00" /></View>
+              <View style={styles.foodActionTextWrap}>
+                <Text style={styles.foodActionText}>กรอกข้อมูลอาหารเอง</Text>
+                <Text style={styles.foodActionSubText}>ใส่ชื่อ แคลอรี่ และสารอาหาร</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal animationType="fade" transparent={true} visible={manualFoodVisible} onRequestClose={() => setManualFoodVisible(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.waterModalBackdrop}>
+          <View style={styles.manualFoodCard}>
+            <View style={styles.waterModalHeader}>
+              <Text style={styles.waterModalTitle}>เพิ่มอาหารใน{getSelectedMealName()}</Text>
+              <TouchableOpacity onPress={() => setManualFoodVisible(false)} style={styles.closeModalBtn}><X size={24} color="#888" /></TouchableOpacity>
+            </View>
+            <Text style={styles.manualLabel}>ชื่ออาหาร</Text>
+            <TextInput style={styles.manualInput} value={manualFoodName} onChangeText={setManualFoodName} placeholder="เช่น ข้าวกะเพราไก่" placeholderTextColor="#BDBDBD" autoFocus />
+            <Text style={styles.manualLabel}>แคลอรี่</Text>
+            <TextInput style={styles.manualInput} value={manualCalories} onChangeText={setManualCalories} keyboardType="numeric" placeholder="0" placeholderTextColor="#BDBDBD" />
+            <View style={styles.manualMacroRow}>
+              <View style={styles.manualMacroField}>
+                <Text style={styles.manualLabel}>โปรตีน</Text>
+                <TextInput style={styles.manualInput} value={manualProtein} onChangeText={setManualProtein} keyboardType="numeric" placeholder="0" placeholderTextColor="#BDBDBD" />
+              </View>
+              <View style={styles.manualMacroField}>
+                <Text style={styles.manualLabel}>คาร์บ</Text>
+                <TextInput style={styles.manualInput} value={manualCarbs} onChangeText={setManualCarbs} keyboardType="numeric" placeholder="0" placeholderTextColor="#BDBDBD" />
+              </View>
+              <View style={styles.manualMacroField}>
+                <Text style={styles.manualLabel}>ไขมัน</Text>
+                <TextInput style={styles.manualInput} value={manualFat} onChangeText={setManualFat} keyboardType="numeric" placeholder="0" placeholderTextColor="#BDBDBD" />
+              </View>
+            </View>
+            <TouchableOpacity style={styles.waterSaveBtn} onPress={saveManualFood}><Text style={styles.waterSaveBtnText}>บันทึกอาหาร</Text></TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <Modal animationType="fade" transparent={true} visible={waterModalVisible} onRequestClose={() => setWaterModalVisible(false)}>
         <View style={styles.waterModalBackdrop}>
           <View style={styles.waterModalCard}>
@@ -493,6 +588,21 @@ const styles = StyleSheet.create({
   foodItemName: { flex: 1, fontSize: 14, color: '#444', fontWeight: '500' },
   foodItemCal: { fontSize: 14, fontWeight: 'bold', color: '#111', marginRight: 15 },
   deleteFoodBtn: { padding: 4, backgroundColor: '#FFEBEE', borderRadius: 8 },
+
+  actionBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end', padding: 20, paddingBottom: 34 },
+  foodActionSheet: { backgroundColor: '#FFF', borderRadius: 18, padding: 8, shadowColor: '#000', shadowOpacity: 0.14, shadowRadius: 18, elevation: 8 },
+  foodActionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10 },
+  foodActionTitle: { fontSize: 17, color: '#1B5E20', fontWeight: '800' },
+  foodActionItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 12, borderRadius: 12 },
+  foodActionIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  foodActionTextWrap: { flex: 1 },
+  foodActionText: { fontSize: 16, color: '#222', fontWeight: '800' },
+  foodActionSubText: { fontSize: 13, color: '#777', fontWeight: '500', marginTop: 2 },
+  manualFoodCard: { backgroundColor: '#FFF', width: '88%', padding: 24, borderRadius: 24 },
+  manualLabel: { color: '#666', fontSize: 13, fontWeight: '700', marginBottom: 8 },
+  manualInput: { borderWidth: 1.5, borderColor: '#DDEEDD', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 17, color: '#222', marginBottom: 14, fontWeight: '700' },
+  manualMacroRow: { flexDirection: 'row', gap: 8 },
+  manualMacroField: { flex: 1 },
 
   waterCard: { backgroundColor: '#FFF', borderRadius: 24, padding: 24, paddingBottom: 30, marginBottom: 20, marginTop: 15, shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 10, elevation: 2 },
   waterTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },

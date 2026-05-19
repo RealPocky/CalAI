@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Dimensions, Act
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 // 🌟 ใช้ SVG Icons แทนทั้งหมด
 import { X, ChevronDown, Info, Camera as CameraIcon, Tag, Zap, ZapOff, Image as ImageIcon, Sparkles, Pencil } from 'lucide-react-native';
 import { MotiView } from 'moti';
@@ -20,15 +20,26 @@ const portionOptions = [
   { key: 'normal', label: 'ปกติ' },
   { key: 'large', label: 'ใหญ่' },
 ] as const;
+type MealId = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+const mealNameById: Record<MealId, string> = {
+  breakfast: 'อาหารเช้า',
+  lunch: 'อาหารกลางวัน',
+  dinner: 'อาหารเย็น',
+  snack: 'อาหารว่าง',
+};
+const isMealId = (value: unknown): value is MealId =>
+  value === 'breakfast' || value === 'lunch' || value === 'dinner' || value === 'snack';
 
 export default function ScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const router = useRouter();
+  const { mealId } = useLocalSearchParams<{ mealId?: string }>();
   const cameraRef = useRef<CameraView>(null); 
   
   const { addFoodToMeal } = useAppContext();
   
   const [flashMode, setFlashMode] = useState(false);
+  const [isCameraReady, setIsCameraReady] = useState(false);
   const [activeTab, setActiveTab] = useState('scan'); 
   const [portionSize, setPortionSize] = useState<typeof portionOptions[number]['key']>('normal');
   const [currentMeal, setCurrentMeal] = useState('อาหารว่าง');
@@ -77,16 +88,29 @@ export default function ScannerScreen() {
         Animated.timing(scanAnim, { toValue: 0, duration: 2000, useNativeDriver: true })
       ])
     ).start();
-  }, []);
+  }, [scanAnim]);
 
   useEffect(() => {
+    if (isMealId(mealId)) {
+      setCurrentMeal(mealNameById[mealId]);
+      return;
+    }
+
     const currentHour = new Date().getHours();
     if (currentHour >= 5 && currentHour < 10) setCurrentMeal('อาหารเช้า');
     else if (currentHour >= 10 && currentHour < 14) setCurrentMeal('อาหารกลางวัน');
     else if (currentHour >= 14 && currentHour < 17) setCurrentMeal('อาหารว่าง');
     else if (currentHour >= 17 && currentHour < 22) setCurrentMeal('อาหารเย็น');
     else setCurrentMeal('อาหารว่าง');
+  }, [mealId]);
+
+  useEffect(() => {
+    return () => setFlashMode(false);
   }, []);
+
+  const toggleFlash = () => {
+    setFlashMode(current => !current);
+  };
 
   const analyzeImage = async (base64Image: string) => {
     setIsLoading(true); 
@@ -213,7 +237,7 @@ export default function ScannerScreen() {
       'อาหารว่าง': 'snack'
     };
     
-    const selectedMealKey = mealKeyMap[currentMeal] || 'snack';
+    const selectedMealKey = isMealId(mealId) ? mealId : mealKeyMap[currentMeal] || 'snack';
 
     const newFood = {
       id: Date.now().toString(), 
@@ -244,7 +268,18 @@ export default function ScannerScreen() {
 
   return (
     <View style={styles.container}>
-      <CameraView ref={cameraRef} style={StyleSheet.absoluteFillObject} facing="back" enableTorch={flashMode}>
+      <CameraView
+        ref={cameraRef}
+        style={StyleSheet.absoluteFillObject}
+        facing="back"
+        flash={flashMode ? 'on' : 'off'}
+        enableTorch={isCameraReady && flashMode}
+        onCameraReady={() => setIsCameraReady(true)}
+        onMountError={() => {
+          setIsCameraReady(false);
+          setFlashMode(false);
+        }}
+      />
         <View pointerEvents="none" style={styles.massiveBorder} />
         <View pointerEvents="none" style={styles.scanFrameContainer}>
           <Animated.View style={[styles.scanLine, { transform: [{ translateY: scanAnim }] }]} />
@@ -307,7 +342,11 @@ export default function ScannerScreen() {
 
           <View style={styles.controlsRow}>
             {/* 🌟 ไอคอนแฟลช */}
-            <TouchableOpacity style={styles.controlBtn} onPress={() => setFlashMode(!flashMode)}>
+            <TouchableOpacity
+              style={[styles.controlBtn, flashMode && styles.controlBtnActive, !isCameraReady && styles.controlBtnDisabled]}
+              onPress={toggleFlash}
+              disabled={!isCameraReady}
+            >
               {flashMode ? <Zap size={24} color="#FFF" /> : <ZapOff size={24} color="#FFF" />}
             </TouchableOpacity>
             <TouchableOpacity activeOpacity={0.8} style={styles.captureOuter} onPress={takePicture}>
@@ -328,7 +367,6 @@ export default function ScannerScreen() {
             </MotiView>
           </View>
         )}
-      </CameraView>
 
       <Modal animationType="fade" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalBackdrop}>
@@ -438,6 +476,8 @@ const styles = StyleSheet.create({
 
   controlsRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingHorizontal: 40 },
   controlBtn: { width: 50, height: 50, borderRadius: 25, borderWidth: 1, borderColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
+  controlBtnActive: { backgroundColor: 'rgba(76,175,80,0.75)', borderColor: '#4CAF50' },
+  controlBtnDisabled: { opacity: 0.45 },
   captureOuter: { width: 80, height: 80, borderRadius: 40, borderWidth: 4, borderColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
   captureInner: { width: 68, height: 68, borderRadius: 34, backgroundColor: '#FFF' },
 
